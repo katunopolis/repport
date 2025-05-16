@@ -1,0 +1,54 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Instructions for Cursor AI:
+
+## Follow clean code principles:
+### Use clear, descriptive names for variables, functions, and classes
+### Keep functions short and focused (ideally < 50 lines)
+### Minimize nesting and use early returns where possible
+## Do not exceed 500 lines in code files
+## Split code into logical modules/functions
+## Group related functionality into separate files if needed (e.g., routes, services, config)
+## Comment code generously to improve readability and maintainability
+## Never hardcode secrets or passwords; use environment variables instead
+
+## Security Best Practices:
+### Sanitize and validate all user input (especially in APIs or forms)
+### Use HTTPS for all deployments and local development (when applicable)
+### Keep dependencies up to date and pin versions in requirements.txt or package.json
+
+## Testing Guidelines:
+### Write tests for core functionality (use Pytest for Python, Jest/RTL for React)
+### Keep unit tests isolated; avoid external API calls in tests
+### Maintain >80% test coverage where feasible
+
+## Performance Guidelines:
+### Cache expensive operations using Redis or in-memory solutions
+### Use lazy loading where applicable (especially in React)
+### Avoid N+1 queries — prefer SQL joins or eager loading when using SQLModel
+
+## Cursor-Specific Reminders:
+### If refactoring, suggest file splitting once a file reaches ~400 lines
+### Suggest modularization if similar logic appears in multiple places
+### Prioritize readability and maintainability over clever code
+
+##Always refer to official documentation:
+
+### Cursor: https://.cursor.com/
+### Railway: https://.railway.app/
+### FastAPI: https://fastapi.tiangolo.com/
+### SQLModel: https://sqlmodel.tiangolo.com/ 
+### PostgreSQL: https://www.postgresql.org// 
+### Redis: https://redis.io// 
+### RQ: https://python-rq.org// 
+### FastAPI Users: https://fastapi-users.github.io/fastapi-users/10.3/ 
+### React: https://react.dev/ 
+### Material UI: https://mui.com/ 
+### Docker: https://.docker.com/ 
+### Railway: https://.railway.app/ 
+### GitHub Actions: https://.github.com/en/actions 
+
+### Storybook: https://storybook.js.org//react/get-started/introduction 
