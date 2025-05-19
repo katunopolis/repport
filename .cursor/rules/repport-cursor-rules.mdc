@@ -35,7 +35,7 @@ alwaysApply: true
 ### Suggest modularization if similar logic appears in multiple places
 ### Prioritize readability and maintainability over clever code
 
-##Always refer to official documentation:
+## Always refer to official documentation:
 
 ### Cursor: https://.cursor.com/
 ### Railway: https://.railway.app/
@@ -49,6 +49,5 @@ alwaysApply: true
 ### Material UI: https://mui.com/ 
 ### Docker: https://.docker.com/ 
 ### Railway: https://.railway.app/ 
-### GitHub Actions: https://.github.com/en/actions 
-
-### Storybook: https://storybook.js.org//react/get-started/introduction 
+### GitHub Actions: https://.github.com/en/actions
+### Storybook: https://storybook.js.org//react/get-started/introduction

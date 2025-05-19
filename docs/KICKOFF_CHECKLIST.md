@@ -96,6 +96,18 @@
 - [ ] Add webhook endpoint in FastAPI
 - [ ] Add email sending (SendGrid/Mailgun)
 - [ ] Add SSO (OAuth2) integration
+  - [ ] Set up Google OAuth2
+  - [ ] Set up GitHub OAuth2
+  - [ ] Set up LinkedIn OAuth2
+  - [ ] Set up Twitter OAuth2
+  - [ ] Set up Facebook OAuth2
+  - [ ] Implement account linking
+  - [ ] Add social login UI components
+  - [ ] Configure OAuth2 scopes
+  - [ ] Set up token refresh
+  - [ ] Implement error handling
+  - [ ] Add security measures
+  - [ ] Test all providers
 - [ ] Generate OpenAPI client for frontend
 - [ ] Add Zapier/IFTTT webhook support
 
