@@ -91,4 +91,48 @@ export const ticketsApi = {
     return response.data;
   },
   
-  respondToTicket: async (id: number, response: string): Promise<Ticket>
+  respondToTicket: async (id: number, response: string): Promise<Ticket> => {
+    const data = { response };
+    const resp = await api.post(`/tickets/${id}/respond`, data);
+    return resp.data;
+  },
+};
+
+export const userApi = {
+  // Get all users (admin only)
+  getUsers: async (): Promise<User[]> => {
+    const response = await api.get('/users');
+    return response.data;
+  },
+  
+  // Get a specific user by ID (admin only)
+  getUser: async (id: string): Promise<User> => {
+    const response = await api.get(`/users/${id}`);
+    return response.data;
+  },
+  
+  // Create a new user (admin only)
+  createUser: async (email: string, password: string, is_superuser: boolean = false): Promise<User> => {
+    const response = await api.post('/users', { 
+      email, 
+      password,
+      is_superuser,
+      is_active: true,
+      is_verified: true
+    });
+    return response.data;
+  },
+  
+  // Update user properties (admin only)
+  updateUser: async (id: string, userData: Partial<User>): Promise<User> => {
+    const response = await api.patch(`/users/${id}`, userData);
+    return response.data;
+  },
+  
+  // Delete a user (admin only)
+  deleteUser: async (id: string): Promise<void> => {
+    await api.delete(`/users/${id}`);
+  }
+};
+
+export default api; 
