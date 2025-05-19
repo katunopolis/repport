@@ -383,6 +383,101 @@ MAIL_FROM=support@yourdomain.com
    - Add Redis for caching
    - Implement background jobs
 
+## Docker Deployment Troubleshooting
+
+When deploying the application with Docker, you may encounter several common issues. Here are solutions to the most frequent problems:
+
+### 1. Environment Variable Handling
+
+**Issue**: Environment variables are not properly loaded in Docker containers.
+
+**Solution**: 
+- Use the `env_file` directive in `docker-compose.yml` to load variables from a `.env` file:
+  ```yaml
+  services:
+    backend:
+      build: ./backend
+      env_file:
+        - ./backend/.env
+  ```
+- For CORS origins that expect an array but are provided as a string, use this pattern in your `config.py`:
+  ```python
+  @property
+  def BACKEND_CORS_ORIGINS(self) -> List[str]:
+      """Get list of allowed origins from the string"""
+      return self.BACKEND_CORS_ORIGINS_STR.split(",") if self.BACKEND_CORS_ORIGINS_STR else ["http://localhost:3000"]
+  ```
+
+### 2. SQLite with Async Support
+
+**Issue**: SQLite requires special configuration for async operations.
+
+**Solution**:
+- Use the `aiosqlite` driver: `sqlite+aiosqlite:///./data/helpdesk.db`
+- Add proper connection arguments:
+  ```python
+  engine = create_async_engine(
+      DATABASE_URL, 
+      connect_args={"check_same_thread": False, "timeout": 15},
+      pool_pre_ping=True
+  )
+  ```
+- Install required packages: `aiosqlite` and `greenlet`
+
+### 3. Docker File Permissions
+
+**Issue**: Container may not have write permissions to SQLite database.
+
+**Solution**:
+- Create a data directory in the Dockerfile:
+  ```dockerfile
+  RUN mkdir -p /app/data && chmod 777 /app/data
+  ```
+- Mount a volume for the data directory:
+  ```yaml
+  volumes:
+    - ./backend:/app
+    - ./backend/data:/app/data
+  ```
+
+### 4. Handling Missing API Keys
+
+**Issue**: Application crashes when API keys are missing.
+
+**Solution**:
+- Add graceful fallbacks for external services:
+  ```python
+  if settings.RESEND_API_KEY:
+      resend = Resend(api_key=settings.RESEND_API_KEY)
+      logger.info("Resend API client initialized successfully")
+  else:
+      resend = None
+      logger.warning("Resend API key not found. Email functionality will be disabled.")
+  ```
+- Check for client availability before use:
+  ```python
+  async def send_email(email_to, subject, body, html=None):
+      if not resend:
+          logger.warning(f"Email not sent (Resend API key missing): {subject} to {email_to}")
+          return
+      # Send email...
+  ```
+
+### 5. Library Version Compatibility
+
+**Issue**: Library interfaces change between versions.
+
+**Solution**:
+- When using external libraries like FastAPI Users, ensure your implementation matches the version in `requirements.txt`
+- For FastAPI Users, check the initialization pattern:
+  ```python
+  # For newer versions:
+  fastapi_users = FastAPIUsers(get_user_db, [auth_backend], User, UserCreate, UserUpdate, UserDB)
+  
+  # For older versions:
+  fastapi_users = FastAPIUsers(get_user_manager, [auth_backend])
+  ```
+
 ## Development Guidelines
 
 1. **Keep it Simple**
