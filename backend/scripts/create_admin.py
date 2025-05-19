@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.models.user import UserCreate, User
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.core.database import get_async_session, engine
+from app.core.database import get_session, engine
 from sqlmodel import select, SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,7 +23,7 @@ async def create_admin_user(email: str, password: str):
         await conn.run_sync(SQLModel.metadata.create_all)
     
     # Get async session
-    async for session in get_async_session():
+    async for session in get_session():
         # Check if user already exists
         result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
