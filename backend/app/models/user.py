@@ -29,8 +29,17 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     password: Optional[str] = None
 
-class UserDB(User, SQLAlchemyBaseUserTable):
-    pass
+class UserDB(SQLAlchemyBaseUserTable):
+    id: int
+    email: str
+    hashed_password: str
+    is_active: bool
+    is_superuser: bool
+    is_verified: bool
+    verification_token: Optional[str] = None
+    reset_token: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
 
 class UserResponse(UserBase):
     id: int

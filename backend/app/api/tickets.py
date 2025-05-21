@@ -1,20 +1,29 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
 from app.models.ticket import Ticket, TicketCreate, TicketResponse
 from app.core.database import get_session
 from app.core.email import send_ticket_created_notification, send_ticket_response_notification
 from datetime import datetime
+from sqlalchemy import text
+from sqlmodel import select
+from app.api.auth import current_active_user
+from app.models.user import User
 
-router = APIRouter()
+router = APIRouter(prefix="/tickets")
 
-@router.post("/tickets/", response_model=TicketResponse)
+@router.post("/", response_model=TicketResponse)
 async def create_ticket(
     ticket: TicketCreate,
     background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
 ):
-    db_ticket = Ticket(**ticket.dict())
+    # Set the created_by field to the current user's email
+    ticket_data = ticket.dict()
+    ticket_data["created_by"] = current_user.email
+    
+    db_ticket = Ticket(**ticket_data)
     session.add(db_ticket)
     await session.commit()
     await session.refresh(db_ticket)
@@ -22,58 +31,90 @@ async def create_ticket(
     # Send notification email
     background_tasks.add_task(
         send_ticket_created_notification,
-        email_to=ticket.created_by,
+        email_to=current_user.email,
         ticket_title=ticket.title
     )
     
     return db_ticket
 
-@router.get("/tickets/", response_model=List[TicketResponse])
+@router.get("/", response_model=List[TicketResponse])
 async def list_tickets(
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user),
     skip: int = 0,
     limit: int = 100
 ):
-    result = await session.execute(
-        "SELECT * FROM ticket ORDER BY created_at DESC LIMIT :limit OFFSET :skip",
-        {"limit": limit, "skip": skip}
-    )
-    tickets = result.all()
+    # Admin users can see all tickets
+    if current_user.is_superuser:
+        result = await session.execute(
+            select(Ticket).order_by(Ticket.created_at.desc()).offset(skip).limit(limit)
+        )
+    else:
+        # Non-admin users can only see their own tickets
+        result = await session.execute(
+            select(Ticket)
+            .where(Ticket.created_by == current_user.email)
+            .order_by(Ticket.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+    
+    tickets = result.scalars().all()
     return tickets
 
-@router.get("/tickets/{ticket_id}", response_model=TicketResponse)
+@router.get("/{ticket_id}", response_model=TicketResponse)
 async def get_ticket(
     ticket_id: int,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
 ):
-    result = await session.execute(
-        "SELECT * FROM ticket WHERE id = :ticket_id",
-        {"ticket_id": ticket_id}
-    )
-    ticket = result.first()
+    # Use SQLModel select instead of raw SQL
+    result = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalar_one_or_none()
+    
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Check if user has permission to view this ticket
+    if not current_user.is_superuser and ticket.created_by != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized to view this ticket")
+    
     return ticket
 
-@router.post("/tickets/{ticket_id}/respond")
+# Add an explicit duplicate endpoint with trailing slash
+@router.get("/{ticket_id}/", response_model=TicketResponse)
+async def get_ticket_with_slash(
+    ticket_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    return await get_ticket(ticket_id, session, current_user)
+
+@router.post("/{ticket_id}/respond", response_model=TicketResponse)
 async def respond_to_ticket(
     ticket_id: int,
-    response: str,
     background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session)
+    response: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
 ):
-    result = await session.execute(
-        "SELECT * FROM ticket WHERE id = :ticket_id",
-        {"ticket_id": ticket_id}
-    )
-    ticket = result.first()
+    # Use SQLModel select instead of raw SQL to get a proper model instance
+    result = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalar_one_or_none()
+    
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Only admin or the creator can respond to a ticket
+    if not current_user.is_superuser and ticket.created_by != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized to respond to this ticket")
     
     # Update ticket
     ticket.response = response
     ticket.updated_at = datetime.utcnow()
+    session.add(ticket)
     await session.commit()
+    await session.refresh(ticket)
     
     # Send response notification
     background_tasks.add_task(
@@ -83,24 +124,40 @@ async def respond_to_ticket(
         response=response
     )
     
-    return {"status": "success", "message": "Response sent successfully"}
+    # Return the complete updated ticket object
+    return ticket
 
-@router.put("/tickets/{ticket_id}/status")
+# Add an explicit duplicate endpoint with trailing slash
+@router.post("/{ticket_id}/respond/", response_model=TicketResponse)
+async def respond_to_ticket_with_slash(
+    ticket_id: int,
+    background_tasks: BackgroundTasks,
+    response: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    return await respond_to_ticket(ticket_id, background_tasks, response, session, current_user)
+
+@router.put("/{ticket_id}/status")
 async def update_ticket_status(
     ticket_id: int,
-    status: str,
-    session: AsyncSession = Depends(get_session)
+    status: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
 ):
     if status not in ["open", "in_progress", "resolved", "closed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
     
-    result = await session.execute(
-        "SELECT * FROM ticket WHERE id = :ticket_id",
-        {"ticket_id": ticket_id}
-    )
-    ticket = result.first()
+    # Use SQLModel select instead of raw SQL to get a proper model instance
+    result = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalar_one_or_none()
+    
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Only admin or the creator can update the ticket status
+    if not current_user.is_superuser and ticket.created_by != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized to update this ticket's status")
     
     # Update ticket status
     ticket.status = status
@@ -108,5 +165,68 @@ async def update_ticket_status(
     if status in ["resolved", "closed"]:
         ticket.resolved_at = datetime.utcnow()
     
+    session.add(ticket)
     await session.commit()
+    await session.refresh(ticket)
+    
     return {"status": "success", "message": f"Ticket status updated to {status}"}
+
+# Add an explicit duplicate endpoint with trailing slash
+@router.put("/{ticket_id}/status/")
+async def update_ticket_status_with_slash(
+    ticket_id: int,
+    status: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    return await update_ticket_status(ticket_id, status, session, current_user)
+
+@router.put("/{ticket_id}/solve")
+async def solve_ticket(
+    ticket_id: int,
+    background_tasks: BackgroundTasks,
+    data: dict = Body(...),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    # Only admin can solve tickets
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Only administrators can solve tickets")
+    
+    # Use SQLModel select to get a proper model instance
+    result = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalar_one_or_none()
+    
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Update ticket with final response and closed status
+    ticket.response = data.get("response", ticket.response)
+    ticket.status = "closed"
+    ticket.updated_at = datetime.utcnow()
+    ticket.resolved_at = datetime.utcnow()
+    
+    session.add(ticket)
+    await session.commit()
+    await session.refresh(ticket)
+    
+    # Send notification to user that their ticket was solved
+    background_tasks.add_task(
+        send_ticket_response_notification,
+        email_to=ticket.created_by,
+        ticket_title=ticket.title,
+        response=f"Your ticket has been marked as solved with the following response:\n\n{ticket.response}"
+    )
+    
+    return ticket
+
+# Add an explicit duplicate endpoint with trailing slash
+@router.put("/{ticket_id}/solve/")
+async def solve_ticket_with_slash(
+    ticket_id: int,
+    background_tasks: BackgroundTasks,
+    data: dict = Body(...),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    return await solve_ticket(ticket_id, background_tasks, data, session, current_user)

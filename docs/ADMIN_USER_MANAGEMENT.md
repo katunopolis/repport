@@ -74,7 +74,7 @@ The Admin Dashboard provides a comprehensive user management interface that allo
 
 1. Click the "Add User" button at the top of the User Management tab
 2. Enter the user's email
-3. Enter a password for the user
+3. Enter a password for the user (must be at least 8 characters)
 4. Toggle the "Admin User" switch if the user should have admin privileges
 5. Click "Create" to add the user
 
@@ -94,6 +94,23 @@ The Admin Dashboard provides a comprehensive user management interface that allo
 3. Confirm the deletion in the confirmation dialog
 
 **Warning**: User deletion is permanent and cannot be undone.
+
+## 3. Error Handling and Validation
+
+The system includes the following validations for user management:
+
+### Password Requirements
+- Passwords must be at least 8 characters long
+- Additional password complexity requirements can be configured in `backend/app/api/auth.py` in the `validate_password` method
+
+### Email Validation
+- Emails must be in a valid format
+- Emails must be unique in the system
+- The system will prevent duplicate email registrations with a clear error message
+
+### Self-Protection
+- Admin users cannot demote themselves from admin status
+- Admin users cannot delete their own accounts
 
 ## Security Considerations
 
@@ -127,3 +144,9 @@ The Admin Dashboard provides a comprehensive user management interface that allo
   - Ensure email is unique (not already in use)
   - Password must meet minimum requirements
   - Check browser console and backend logs for specific errors 
+
+- **Issue**: "User already exists" error
+  - The system prevents creating users with duplicate emails
+  - Use a different email address or recover access to the existing account
+
+For additional authentication troubleshooting, see [AUTH_TROUBLESHOOTING.md](./AUTH_TROUBLESHOOTING.md). 

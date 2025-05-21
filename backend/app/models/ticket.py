@@ -16,7 +16,6 @@ class Ticket(SQLModel, table=True):
 class TicketCreate(SQLModel):
     title: str
     description: str
-    created_by: str
 
 class TicketResponse(SQLModel):
     id: int

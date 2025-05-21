@@ -235,6 +235,76 @@ def list_tickets():
 - Use [FastAPI Users](https://fastapi-users.github.io/fastapi-users/10.3/) for JWT, password reset, and OAuth2 SSO.
 - Example setup in `app/api/auth.py` (see FastAPI Users docs for full example).
 
+#### 4.3.1 Custom Signup Implementation
+We've implemented a custom signup endpoint that properly handles user creation and JWT token generation:
+
+```python
+@router.post("/auth/signup")
+async def custom_signup(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user_manager: UserManager = Depends(get_user_manager)
+):
+    # Extract user data from request
+    try:
+        data = await request.json()
+        email = data.get("email")
+        password = data.get("password")
+        
+        # Validate required fields
+        if not email or not password:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Email and password are required"
+            )
+        
+        # Check if user already exists
+        result = await session.execute(select(User).where(User.email == email))
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A user with this email already exists"
+            )
+        
+        # Create user
+        user_create = UserCreate(email=email, password=password)
+        user = await user_manager.create(user_create, safe=True, request=request)
+        
+        # Generate JWT token
+        strategy = auth_backend.get_strategy()
+        access_token = await strategy.write_token(user)
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_superuser": user.is_superuser
+            }
+        }
+    except Exception as e:
+        # Proper error handling...
+```
+
+#### 4.3.2 Important Implementation Details
+- **JWT Token Generation**: When using `JWTStrategy.write_token()`, it's critical to properly await the result as this is an async function.
+- **User Creation**: The custom signup endpoint handles validation and database checks before creating the user.
+- **Error Handling**: The implementation includes comprehensive error handling for common issues:
+  - User already exists
+  - Invalid password (too short)
+  - Missing required fields
+  - Server-side errors during token generation
+
+#### 4.3.3 Security Considerations
+- Passwords are hashed using Argon2id with bcrypt fallback
+- JWT tokens are signed with the application secret key
+- Proper validation prevents duplicate user accounts
+- Token lifetimes are limited (default: 1 hour)
+
 ### 4.4 Background Jobs
 - Use RQ for async tasks (see previous example).
 
