@@ -13,11 +13,12 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/api';
-import config, { setAuthToken, setUserEmail } from '../config';
+import { setAuthToken, setUserEmail } from '../config';
 
-const LoginPage: React.FC = () => {
+const SignupPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -25,39 +26,42 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Check for minimum password length
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await authApi.login(email, password);
+      // Register and get auth token (login is handled in the API layer)
+      const response = await authApi.register(email, password);
       
-      // Save token and email using our helpers
+      // Verify we have a token before proceeding
+      if (!response.access_token) {
+        throw new Error('No authentication token received');
+      }
+      
+      // Save token and email
       setAuthToken(response.access_token);
       setUserEmail(email);
-      console.debug('Login successful, token and email saved');
       
-      // Check if user is admin (in a real app this would be determined by user role)
-      if (email.includes('admin')) {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      console.debug('Registration successful, navigating to dashboard');
+      navigate('/dashboard');
     } catch (err: any) {
-      console.error('Login error:', err);
-      if (err.response && err.response.status === 401) {
-        setError('Invalid email or password. Please try again.');
+      console.error('Registration error:', err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
       } else {
-        setError('Login failed. Please try again later.');
-        
-        // For development only: navigate even when API is not available
-        console.warn('DEV MODE: Navigating despite login failure');
-        if (email.includes('admin')) {
-          // Even in dev mode, we should store the email
-          setUserEmail(email);
-          navigate('/admin');
-        } else {
-          setUserEmail(email);
-          navigate('/dashboard');
-        }
+        setError('Registration failed. Please try again later.');
       }
     } finally {
       setLoading(false);
@@ -68,7 +72,7 @@ const LoginPage: React.FC = () => {
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" align="center" gutterBottom>
-          Vibe Repport
+          Create Account
         </Typography>
         
         {error && (
@@ -98,6 +102,20 @@ const LoginPage: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading}
+            helperText="Password must be at least 8 characters long"
+          />
+          
+          <TextField
+            label="Confirm Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={loading}
+            error={confirmPassword !== '' && password !== confirmPassword}
+            helperText={confirmPassword !== '' && password !== confirmPassword ? "Passwords don't match" : ""}
           />
           
           <Button
@@ -108,18 +126,13 @@ const LoginPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Sign In'}
+            {loading ? <CircularProgress size={24} /> : 'Sign Up'}
           </Button>
           
-          <Grid container justifyContent="space-between">
+          <Grid container justifyContent="center">
             <Grid item>
-              <Link href="#" variant="body2">
-                Forgot password?
-              </Link>
-            </Grid>
-            <Grid item>
-              <Link href="/signup" variant="body2">
-                Don't have an account? Sign Up
+              <Link href="/" variant="body2">
+                Already have an account? Sign In
               </Link>
             </Grid>
           </Grid>
@@ -129,4 +142,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage; 
+export default SignupPage; 

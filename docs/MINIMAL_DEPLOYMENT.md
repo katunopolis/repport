@@ -383,6 +383,167 @@ MAIL_FROM=support@yourdomain.com
    - Add Redis for caching
    - Implement background jobs
 
+## API Testing
+
+To ensure API endpoints are functioning correctly, we've implemented a comprehensive testing strategy with dedicated scripts.
+
+### Testing Scripts
+
+1. **API Test Suite** (`backend/scripts/tests/api_test.py`)
+   - Comprehensive endpoint testing
+   - Authentication flow validation
+   - User management functionality
+   - Ticket creation and management
+   - Detailed output with pass/fail status
+
+2. **API Path Analyzer** (`backend/scripts/tests/fix_api_paths.py`)
+   - Diagnostic tool for API routing issues
+   - Tests endpoints with different prefixes
+   - Identifies mis-configured routes
+   - Suggests fixes for 404 errors
+
+3. **Test Automation** (`frontend/scripts/run_api_tests.ps1`)
+   - One-click testing in production-like environment
+   - Docker container orchestration
+   - Automatic test execution
+   - Error reporting and debugging assistance
+
+### Running API Tests
+
+To test the API endpoints in your development environment:
+
+```powershell
+# From project root directory
+.\frontend\scripts\run_api_tests.ps1
+```
+
+This script will:
+1. Start Docker containers in production mode
+2. Wait for services to initialize
+3. Run the comprehensive API tests
+4. Show backend logs if tests fail
+5. Offer to run the path analyzer for diagnostics
+6. Ask if you want to keep containers running
+
+### Common API Issues
+
+If you encounter 404 errors or other API issues:
+
+1. **Check API Prefixes**: Ensure frontend config uses the correct `/api/v1` prefix
+2. **Verify Router Registration**: Check that routers are properly included in main.py
+3. **Examine Router Prefixes**: Be aware of double-prefixing when routers have their own prefixes
+4. **Authentication Headers**: Validate that bearer tokens are correctly formatted and included
+
+For detailed API testing documentation, refer to `backend/scripts/tests/API_TESTING.md`.
+
+## API Route Configuration
+
+When working with the API endpoints, there are two critical configuration points to ensure proper functionality:
+
+### 1. Backend API Prefix
+
+All API routes in the backend follow the `/api/v1` prefix structure. This is configured in `backend/app/core/config.py`:
+
+```python
+# API Settings
+API_V1_STR: str = "/api/v1"
+```
+
+### 2. Authentication Routes
+
+The authentication endpoints (login, logout, register) are configured in `backend/app/api/auth.py` and registered with:
+
+```python
+# Include FastAPI Users routers
+router.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth",
+    tags=["auth"]
+)
+```
+
+This creates endpoints like:
+- `/api/v1/auth/login` - For user login
+- `/api/v1/auth/logout` - For user logout
+- `/api/v1/auth/register` - For user registration
+
+### 3. Custom Endpoints for Admin Dashboard
+
+To support proper functionality in the admin dashboard, we've added custom endpoints:
+
+```python
+# Custom logout endpoint
+@router.post("/logout")
+async def logout():
+    return {"status": "success", "message": "Logged out successfully"}
+
+# Password reset endpoints
+@router.post("/auth/forgot-password")
+async def forgot_password(
+    email: str = Body(..., embed=True), 
+    session: AsyncSession = Depends(get_session)
+):
+    # Implementation...
+
+@router.post("/auth/reset-password")
+async def reset_password(
+    token: str = Body(..., embed=True), 
+    new_password: str = Body(..., embed=True), 
+    session: AsyncSession = Depends(get_session)
+):
+    # Implementation...
+```
+
+### 4. Ticket Endpoints
+
+Ticket endpoints use a router prefix to organize all ticket-related endpoints:
+
+```python
+router = APIRouter(prefix="/tickets")
+
+@router.post("/")  # Becomes /api/v1/tickets/
+@router.get("/")   # Becomes /api/v1/tickets/
+@router.get("/{ticket_id}")  # Becomes /api/v1/tickets/{ticket_id}
+
+@router.post("/{ticket_id}/respond")
+async def respond_to_ticket(
+    ticket_id: int,
+    background_tasks: BackgroundTasks,
+    response: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session)
+):
+    # Implementation using SQLModel select...
+    
+@router.put("/{ticket_id}/status")
+async def update_ticket_status(
+    ticket_id: int,
+    status: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session)
+):
+    # Implementation using SQLModel select...
+```
+
+The ticket endpoints now use:
+- Proper Body parameters instead of query parameters for better security
+- SQLModel select statements instead of raw SQL for better maintainability
+- Model instances for proper ORM support
+
+### 5. Frontend API Configuration
+
+The frontend must include the correct API URL with the version prefix. This is configured in `frontend/src/config.ts`:
+
+```typescript
+// Application configuration
+const config = {
+  // API URL - use environment variable or default to localhost
+  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  
+  // Other configuration...
+};
+```
+
+**Important**: Any changes to the API routing structure must be synchronized between backend and frontend to prevent 404 errors.
+
 ## Docker Deployment Troubleshooting
 
 When deploying the application with Docker, you may encounter several common issues. Here are solutions to the most frequent problems:
@@ -447,12 +608,17 @@ When deploying the application with Docker, you may encounter several common iss
 **Solution**:
 - Add graceful fallbacks for external services:
   ```python
-  if settings.RESEND_API_KEY:
-      resend = Resend(api_key=settings.RESEND_API_KEY)
-      logger.info("Resend API client initialized successfully")
-  else:
+  # Initialize Resend with the API key from settings, gracefully handle missing key
+  try:
+      if settings.RESEND_API_KEY:
+          resend = Resend(api_key=settings.RESEND_API_KEY)
+          logger.info("Resend API client initialized successfully")
+      else:
+          resend = None
+          logger.warning("Resend API key not found. Email functionality will be disabled.")
+  except Exception as e:
       resend = None
-      logger.warning("Resend API key not found. Email functionality will be disabled.")
+      logger.warning(f"Failed to initialize Resend client: {str(e)}. Email functionality will be disabled.")
   ```
 - Check for client availability before use:
   ```python
@@ -462,6 +628,11 @@ When deploying the application with Docker, you may encounter several common iss
           return
       # Send email...
   ```
+- For the minimal deployment (MVP), email features will gracefully degrade:
+  - If API keys are present, emails will be sent normally
+  - If API keys are missing, detailed logs will show what would have been sent
+  - Application functions normally without interruption
+  - Users still get appropriate success messages in the UI
 
 ### 5. Library Version Compatibility
 
@@ -502,6 +673,10 @@ When deploying the application with Docker, you may encounter several common iss
 - [ ] Create ticket submission flow
 - [ ] Build admin dashboard
 - [ ] Set up email notifications
+- [ ] Verify API endpoint configuration 
+  - Check auth routes (`/api/v1/auth/login`, `/api/v1/auth/register`)
+  - Check ticket routes (`/api/v1/tickets`)
+  - Check user routes (`/api/v1/users`, `/api/v1/users/me`)
 - [ ] Deploy to Railway
 - [ ] Test core functionality
 - [ ] Document known issues

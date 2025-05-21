@@ -38,7 +38,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import { ticketsApi, userApi, User, Ticket, authApi } from '../api/api';
+import { ticketsApi, userApi, User, Ticket, authApi, formatTicketId } from '../api/api';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -248,8 +248,19 @@ const AdminDashboard: React.FC = () => {
 
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    if (!dateString) return "N/A";
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
   };
 
   // Helper function to get status color
@@ -341,9 +352,25 @@ const AdminDashboard: React.FC = () => {
                 </TableRow>
               ) : (
                 filteredTickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell>{ticket.id}</TableCell>
-                    <TableCell>{ticket.title}</TableCell>
+                  <TableRow 
+                    key={ticket.id}
+                    sx={{
+                      bgcolor: ticket.response ? 'rgba(25, 118, 210, 0.04)' : 'inherit'
+                    }}
+                  >
+                    <TableCell>{formatTicketId(ticket.id)}</TableCell>
+                    <TableCell>
+                      {ticket.title}
+                      {ticket.response && (
+                        <Chip 
+                          size="small" 
+                          label="Has Response" 
+                          color="info" 
+                          variant="outlined"
+                          sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Chip 
                         label={ticket.status.replace('_', ' ')}

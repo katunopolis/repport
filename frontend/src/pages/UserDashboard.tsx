@@ -11,18 +11,29 @@ import {
   ListItemText,
   Chip,
   IconButton,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { ticketsApi, Ticket, authApi } from '../api/api';
+import { ticketsApi, Ticket, authApi, formatTicketId } from '../api/api';
 
 const UserDashboard: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newTicket, setNewTicket] = useState({ title: '', description: '' });
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState(false);
   const navigate = useNavigate();
 
   // Fetch tickets from API
@@ -30,7 +41,9 @@ const UserDashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      console.debug('Fetching tickets...');
       const data = await ticketsApi.getTickets();
+      console.debug('Tickets fetched:', data.length);
       setTickets(data);
     } catch (err) {
       console.error('Error fetching tickets:', err);
@@ -51,8 +64,52 @@ const UserDashboard: React.FC = () => {
   }, []);
 
   const handleCreateTicket = () => {
-    // TODO: Open ticket creation dialog or navigate to ticket creation page
-    console.log('Create ticket clicked');
+    setDialogOpen(true);
+    setNewTicket({ title: '', description: '' });
+    setCreateError(null);
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+  };
+
+  const handleSubmitTicket = async () => {
+    if (!newTicket.title.trim() || !newTicket.description.trim()) {
+      setCreateError('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    setCreateError(null);
+    
+    try {
+      console.debug('Creating new ticket with data:', newTicket);
+      
+      // Ensure we're explicitly including the status field
+      const result = await ticketsApi.createTicket({
+        title: newTicket.title.trim(),
+        description: newTicket.description.trim(),
+        status: 'open'
+      });
+      
+      console.debug('Ticket created successfully:', result);
+      setDialogOpen(false);
+      setCreateSuccess(true);
+      
+      // Refresh ticket list
+      fetchTickets();
+    } catch (err: any) {
+      console.error('Error creating ticket:', err);
+      
+      // More detailed error message
+      if (err.response && err.response.data && err.response.data.detail) {
+        setCreateError(`Failed to create ticket: ${err.response.data.detail}`);
+      } else {
+        setCreateError('Failed to create ticket. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -73,8 +130,19 @@ const UserDashboard: React.FC = () => {
 
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    if (!dateString) return "N/A";
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
   };
 
   // Helper function to get status color
@@ -106,6 +174,7 @@ const UserDashboard: React.FC = () => {
             startIcon={<AddIcon />}
             onClick={handleCreateTicket}
             sx={{ mr: 1 }}
+            disabled={loading}
           >
             New Ticket
           </Button>
@@ -145,7 +214,17 @@ const UserDashboard: React.FC = () => {
                     sx={{ py: 2 }}
                   >
                     <ListItemText 
-                      primary={ticket.title} 
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Chip 
+                            label={formatTicketId(ticket.id)} 
+                            size="small" 
+                            color="primary" 
+                            sx={{ mr: 1.5, fontWeight: 'medium' }}
+                          />
+                          {ticket.title}
+                        </Box>
+                      }
                       secondary={`Created on ${formatDate(ticket.created_at)}`} 
                     />
                     <Chip 
@@ -160,6 +239,64 @@ const UserDashboard: React.FC = () => {
           </List>
         )}
       </Paper>
+
+      {/* Create Ticket Dialog */}
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Support Ticket</DialogTitle>
+        <DialogContent>
+          {createError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {createError}
+            </Alert>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            id="title"
+            label="Title"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={newTicket.title}
+            onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            id="description"
+            label="Description"
+            type="text"
+            fullWidth
+            multiline
+            rows={4}
+            variant="outlined"
+            value={newTicket.description}
+            onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmitTicket} 
+            variant="contained" 
+            color="primary"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Submit'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success notification */}
+      <Snackbar
+        open={createSuccess}
+        autoHideDuration={6000}
+        onClose={() => setCreateSuccess(false)}
+        message="Ticket created successfully"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Container>
   );
 };

@@ -9,7 +9,7 @@ load_dotenv()
 class Settings(BaseSettings):
     # API Settings
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Helpdesk API"
+    PROJECT_NAME: str = "Vibe Repport"
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))

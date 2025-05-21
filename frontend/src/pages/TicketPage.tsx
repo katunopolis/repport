@@ -9,10 +9,15 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ticketsApi, Ticket } from '../api/api';
+import { ticketsApi, Ticket, formatTicketId } from '../api/api';
+import { getUserEmail } from '../config';
 
 // Update the interface to use Record
 interface RouteParams {
@@ -28,6 +33,10 @@ const TicketPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false); // Check admin status
+  const [solveDialogOpen, setSolveDialogOpen] = useState(false);
+  const [finalResponse, setFinalResponse] = useState('');
+  const [solvingTicket, setSolvingTicket] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,6 +47,11 @@ const TicketPage: React.FC = () => {
         if (id) {
           const data = await ticketsApi.getTicket(parseInt(id));
           setTicket(data);
+          
+          // Check if user is admin - simple check for admin in email
+          // This would be replaced with proper role checking in a production app
+          const userEmail = getUserEmail() || '';
+          setIsAdmin(userEmail.includes('admin'));
         }
       } catch (err) {
         console.error('Error fetching ticket:', err);
@@ -68,7 +82,21 @@ const TicketPage: React.FC = () => {
     
     try {
       const updatedTicket = await ticketsApi.respondToTicket(parseInt(id), response);
-      setTicket(updatedTicket);
+      // Check if response is directly in the response data or if we need to refetch
+      if (updatedTicket && typeof updatedTicket === 'object') {
+        if (updatedTicket.response) {
+          // Direct response in the returned data
+          setTicket(updatedTicket);
+        } else {
+          // Refetch the ticket to get the updated data
+          const refreshedTicket = await ticketsApi.getTicket(parseInt(id));
+          setTicket(refreshedTicket);
+        }
+      } else {
+        // Response doesn't contain ticket object, refetch
+        const refreshedTicket = await ticketsApi.getTicket(parseInt(id));
+        setTicket(refreshedTicket);
+      }
       setResponse('');
     } catch (err) {
       console.error('Error responding to ticket:', err);
@@ -77,11 +105,49 @@ const TicketPage: React.FC = () => {
       setSubmitting(false);
     }
   };
+  
+  const handleOpenSolveDialog = () => {
+    setSolveDialogOpen(true);
+    setFinalResponse(ticket?.response || '');
+  };
+  
+  const handleCloseSolveDialog = () => {
+    setSolveDialogOpen(false);
+  };
+  
+  const handleSolveTicket = async () => {
+    if (!finalResponse.trim() || !id) return;
+    
+    setSolvingTicket(true);
+    setError(null);
+    
+    try {
+      const updatedTicket = await ticketsApi.solveTicket(parseInt(id), finalResponse);
+      setTicket(updatedTicket);
+      setSolveDialogOpen(false);
+    } catch (err) {
+      console.error('Error solving ticket:', err);
+      setError('Failed to solve ticket. Please try again.');
+    } finally {
+      setSolvingTicket(false);
+    }
+  };
 
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
+    if (!dateString) return "N/A";
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+      return date.toLocaleString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
   };
 
   // Helper function to get status color
@@ -96,6 +162,10 @@ const TicketPage: React.FC = () => {
       default:
         return 'default';
     }
+  };
+
+  const canRespond = () => {
+    return isAdmin && ticket && ticket.status !== 'closed';
   };
 
   return (
@@ -115,16 +185,49 @@ const TicketPage: React.FC = () => {
       ) : ticket ? (
         <Paper elevation={2} sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5">{ticket.title}</Typography>
-            <Chip 
-              label={ticket.status.replace('_', ' ')}
-              color={getStatusColor(ticket.status) as any}
-            />
+            <Box>
+              <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                <Chip 
+                  label={formatTicketId(ticket.id)} 
+                  color="primary" 
+                  sx={{ mr: 1.5, fontWeight: 'bold' }}
+                />
+                {ticket.title}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Chip 
+                label={ticket.status.replace('_', ' ')}
+                color={getStatusColor(ticket.status) as any}
+                sx={{ mr: isAdmin && ticket.status !== 'closed' ? 2 : 0 }}
+              />
+              {isAdmin && ticket.status !== 'closed' && (
+                <Button 
+                  variant="contained" 
+                  color="success" 
+                  size="small"
+                  onClick={handleOpenSolveDialog}
+                >
+                  Solve
+                </Button>
+              )}
+            </Box>
           </Box>
           
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Created by {ticket.created_by} on {formatDate(ticket.created_at)}
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            bgcolor: 'grey.50', 
+            p: 1, 
+            borderRadius: 1,
+            mb: 3
+          }}>
+            <Typography variant="body2" color="textSecondary">
+              <strong>Created by:</strong> {ticket.created_by}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ ml: 3 }}>
+              <strong>Date:</strong> {formatDate(ticket.created_at || new Date().toISOString())}
+            </Typography>
+          </Box>
           
           <Typography variant="body1" sx={{ mb: 3, whiteSpace: 'pre-wrap' }}>
             {ticket.description}
@@ -133,17 +236,37 @@ const TicketPage: React.FC = () => {
           {ticket.response && (
             <>
               <Divider sx={{ my: 3 }} />
-              <Typography variant="h6" sx={{ mb: 2 }}>Response</Typography>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {ticket.response}
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Response {isAdmin && <Chip size="small" label="Admin" color="primary" sx={{ ml: 1 }} />}
               </Typography>
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 2, 
+                  bgcolor: 'grey.100',
+                  borderLeft: '4px solid',
+                  borderColor: 'primary.main'
+                }}
+              >
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    whiteSpace: 'pre-wrap',
+                    fontWeight: 'medium'
+                  }}
+                >
+                  {ticket.response}
+                </Typography>
+              </Paper>
             </>
           )}
           
-          {!ticket.response && (
+          {canRespond() && (
             <>
               <Divider sx={{ my: 3 }} />
-              <Typography variant="h6" sx={{ mb: 2 }}>Add Response</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                {ticket.response ? 'Add Additional Response' : 'Add Response'}
+              </Typography>
               
               {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
               
@@ -169,6 +292,44 @@ const TicketPage: React.FC = () => {
           )}
         </Paper>
       ) : null}
+      
+      {/* Solve Ticket Dialog */}
+      <Dialog 
+        open={solveDialogOpen} 
+        onClose={handleCloseSolveDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Solve Ticket</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Add a final response and close this ticket. Once closed, no further responses can be added.
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={6}
+            label="Final Response"
+            value={finalResponse}
+            onChange={(e) => setFinalResponse(e.target.value)}
+            disabled={solvingTicket}
+            sx={{ mb: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseSolveDialog} disabled={solvingTicket}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSolveTicket} 
+            variant="contained" 
+            color="success"
+            disabled={!finalResponse.trim() || solvingTicket}
+          >
+            {solvingTicket ? <CircularProgress size={24} /> : 'Solve & Close Ticket'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
