@@ -4,3 +4,36 @@
 __env.local
 frontend/node_modules/
 .DS_Store
+
+# Database files
+*.db
+*.sqlite3
+*.sqlite
+
+# Password and credential files
+reset_passwords.txt
+**/reset_passwords.txt
+credentials*.txt
+*_credentials*
+*secrets*
+*password*.txt
+*passwd*.txt
+*.key
+*auth*.txt
+*token*.txt
+credentials/
+keys/
+
+# Log files
+*.log
+logs/
+
+# Cache directories
+.cache/
+.pytest_cache/
+__pycache__/
+
+# Build artifacts
+dist/
+build/
+*.pyc

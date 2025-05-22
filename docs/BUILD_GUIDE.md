@@ -300,7 +300,7 @@ async def custom_signup(
   - Server-side errors during token generation
 
 #### 4.3.3 Security Considerations
-- Passwords are hashed using Argon2id with bcrypt fallback
+- Passwords are hashed using bcrypt
 - JWT tokens are signed with the application secret key
 - Proper validation prevents duplicate user accounts
 - Token lifetimes are limited (default: 1 hour)
@@ -1001,6 +1001,25 @@ jobs:
           cd frontend
           npm test -- --watchAll=false
 ```
+
+### Security
+
+#### Authentication
+
+The application uses JWT (JSON Web Tokens) for authentication. User passwords are securely hashed using bcrypt with industry-standard security parameters (12 rounds). The authentication flow is as follows:
+
+1. User submits email/password via login form
+2. Backend verifies credentials and issues a JWT token
+3. Frontend stores token in localStorage
+4. Token is included in Authorization header for subsequent API requests
+
+All password reset functionality follows security best practices:
+- Secure token generation
+- Time-limited reset tokens
+- Email verification
+- Minimum password requirements
+
+As of v1.2, all user passwords are standardized to use the same consistent bcrypt hashing algorithm to ensure reliable authentication and security.
 
 ---
 

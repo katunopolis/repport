@@ -43,6 +43,12 @@ const response = await axios.post('/api/v1/auth/login', formData, {
 }
 ```
 
+**Error Handling**:
+- 401 Unauthorized: If the email doesn't exist or the password is incorrect
+- 422 Unprocessable Entity: If username or password is missing
+
+> **IMPORTANT**: This endpoint has been fixed to properly validate passwords and return appropriate error messages for invalid credentials.
+
 ### Custom Signup
 
 ```
@@ -89,6 +95,109 @@ const headers = {
 };
 const response = await axios.get('/api/v1/users/', { headers });
 ```
+
+### Forgot Password
+
+```
+POST /api/v1/auth/forgot-password
+```
+
+**Request Format**: JSON
+```javascript
+// Request format
+const userData = {
+  "email": "user@example.com"
+};
+
+const response = await axios.post('/api/v1/auth/forgot-password', userData);
+```
+
+**Response Format**:
+```json
+{
+  "message": "If an account exists with this email, you will receive a password reset link"
+}
+```
+
+> **Note**: In development mode, the response may include the actual reset token for testing purposes:
+> ```json
+> {
+>   "message": "Password reset token generated. In production, this would be emailed.",
+>   "token": "random-token-string",
+>   "_dev_note": "This token is only returned in development mode"
+> }
+> ```
+
+**Error Handling**:
+- For security reasons, this endpoint returns the same message regardless of whether the email exists
+
+### Reset Password
+
+```
+POST /api/v1/auth/reset-password
+```
+
+**Request Format**: JSON
+```javascript
+// Reset password format
+const resetData = {
+  "token": "reset-token-from-email",
+  "new_password": "newSecurePassword"
+};
+
+const response = await axios.post('/api/v1/auth/reset-password', resetData);
+```
+
+**Response Format**:
+```json
+{
+  "message": "Password has been reset successfully"
+}
+```
+
+**Error Handling**:
+- 400 Bad Request: If the token is invalid or expired
+- 400 Bad Request: If the new password doesn't meet minimum requirements (at least 8 characters)
+- 422 Unprocessable Entity: If token or new_password is missing
+
+### Change Password (Authenticated Users)
+
+```
+POST /api/v1/users/me/change-password
+```
+
+**Authentication**: Required
+
+**Request Format**: JSON
+```javascript
+// Change password format
+const changePasswordData = {
+  "current_password": "yourCurrentPassword",
+  "new_password": "yourNewSecurePassword"
+};
+
+// Authentication header required - fixed in v1.3.1
+const response = await axios.post(getFullApiUrl('users/me/change-password'), changePasswordData, {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+```
+
+> **IMPORTANT**: This endpoint requires a valid JWT token in the Authorization header. As of v1.3.1, the client implementation was updated to properly include authorization tokens in these requests.
+
+**Response Format**:
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+**Error Handling**:
+- 401 Unauthorized: If authentication token is missing or invalid, or if the current password is incorrect
+- 400 Bad Request: If the new password doesn't meet minimum requirements (at least 8 characters)
+- 400 Bad Request: If the new password is the same as the current password
+- 422 Unprocessable Entity: If current_password or new_password is missing
 
 ## Ticket Endpoints
 
@@ -518,3 +627,58 @@ export const getFullApiUrl = (endpoint: string): string => {
 ```
 
 This means frontend developers don't need to worry about adding or removing trailing slashes when making API calls. 
+
+## User Management
+
+### Current User
+
+```
+GET /api/v1/users/me
+```
+
+**Authentication**: Required
+
+**Response**: Current user object
+
+### List All Users
+
+```
+GET /api/v1/users/
+```
+
+**Authentication**: Required (Admin only)
+
+**Response**: Array of user objects
+
+### Get User
+
+```
+GET /api/v1/users/{id}
+```
+
+**Authentication**: Required (Admin only)
+
+**Response**: User object
+
+> **Note**: User IDs are represented as strings in the frontend interface and API methods
+
+### Create User
+
+```
+POST /api/v1/users/
+```
+
+**Authentication**: Required (Admin only)
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "is_active": true,
+  "is_superuser": false,
+  "is_verified": true
+}
+```
+
+**Response**: Created user object 
