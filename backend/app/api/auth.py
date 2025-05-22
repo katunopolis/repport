@@ -15,9 +15,10 @@ from app.models.user import User, UserCreate, UserUpdate, UserDB
 from app.core.config import settings
 from sqlmodel import select
 import secrets
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.core.email import send_email
 import logging
+import os
 
 router = APIRouter()
 
@@ -125,10 +126,13 @@ class UserManager(BaseUserManager[User, int]):
         if not password:
             # Handle missing password more gracefully - this is debug code
             # Since we're in development, let's use a default password for testing
-            # WARNING: Remove this in production!
-            logger.warning("Password missing - USING DEFAULT PASSWORD FOR DEVELOPMENT!")
-            password = "Default123!"  # Only for testing
-            
+            logger.warning("Password missing - no default password will be set in production mode")
+            if settings.ENVIRONMENT == "development":
+                logger.warning("DEVELOPMENT MODE: Using placeholder password")
+                password = os.getenv("DEFAULT_DEV_PASSWORD", "")  # Use environment variable instead of hardcoded value
+            else:
+                raise ValueError("Password is required")
+        
         # Always validate the password
         try:
             await self.validate_password(password, user_create)
@@ -212,12 +216,8 @@ current_active_user = fastapi_users.current_user(active=True)
 
 # Include FastAPI Users routers
 router.include_router(
-    fastapi_users.get_auth_router(auth_backend),
-    prefix="/auth",
-    tags=["auth"]
-)
-
-router.include_router(
+    # We now use our custom login instead of fastapi-users login
+    # fastapi_users.get_auth_router(auth_backend),
     fastapi_users.get_register_router(UserCreate, User),
     prefix="/auth",
     tags=["auth"]
@@ -248,19 +248,43 @@ async def forgot_password(
     email: str = Body(..., embed=True), 
     session: AsyncSession = Depends(get_session)
 ):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Password reset request for email: {email}")
+    
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user:
+        # Generate a secure token
         reset_token = secrets.token_urlsafe(32)
         user.reset_token = reset_token
         session.add(user)
         await session.commit()
-        # Send reset email using Resend
-        await send_email(
-            email_to=user.email,
-            subject="Password Reset Request",
-            body=f"Click the link to reset your password: http://yourdomain.com/reset-password?token={reset_token}"
-        )
+        logger.info(f"Generated reset token for user {email}")
+        
+        # In a real production app, we would send an email
+        try:
+            # Send reset email using Resend or your preferred email service
+            await send_email(
+                email_to=user.email,
+                subject="Password Reset Request",
+                body=f"Your password reset token is: {reset_token}\n\nUse this token to reset your password."
+            )
+            logger.info(f"Sent password reset email to {email}")
+        except Exception as e:
+            logger.error(f"Failed to send reset email: {str(e)}")
+            # For development, we'll still return the token directly
+            if settings.ENVIRONMENT != "production":
+                logger.info(f"Development mode: Returning token directly in response")
+                return {
+                    "message": "Password reset token generated. In production, this would be emailed.",
+                    "token": reset_token,  # Only included in development mode!
+                    "_dev_note": "This token is only returned in development mode"
+                }
+    else:
+        logger.warning(f"Password reset requested for non-existent email: {email}")
+    
+    # Always return the same message whether the user exists or not
+    # to prevent email enumeration attacks
     return {"message": "If an account exists with this email, you will receive a password reset link"}
 
 @router.post("/auth/reset-password")
@@ -269,14 +293,28 @@ async def reset_password(
     new_password: str = Body(..., embed=True), 
     session: AsyncSession = Depends(get_session)
 ):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Password reset attempt with token: {token[:10]}...")
+    
+    # Check for minimum password length
+    if len(new_password) < 8:
+        logger.warning("Password reset failed: Password too short")
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    
     result = await session.execute(select(User).where(User.reset_token == token))
     user = result.scalar_one_or_none()
     if not user:
+        logger.warning("Password reset failed: Invalid or expired token")
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+    
+    # Update password and clear the reset token
+    logger.info(f"Resetting password for user: {user.email}")
     user.hashed_password = get_password_hash(new_password)
     user.reset_token = None
     session.add(user)
     await session.commit()
+    
+    logger.info(f"Password reset successful for user: {user.email}")
     return {"message": "Password has been reset successfully"}
 
 # User profile endpoint - moved to top level to be accessible at /api/v1/users/me
@@ -461,6 +499,49 @@ async def delete_user(
     
     return None
 
+# Password change endpoint for authenticated users
+@router.post("/users/me/change-password", status_code=200)
+async def change_password(
+    current_password: str = Body(..., embed=True),
+    new_password: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Password change request for user ID: {current_user.id}")
+    
+    # Verify current password
+    if not verify_password(current_password, current_user.hashed_password):
+        logger.warning(f"Password change failed: Invalid current password for user ID {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+    
+    # Validate new password
+    if len(new_password) < 8:
+        logger.warning(f"Password change failed: New password too short for user ID {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long",
+        )
+    
+    # Prevent reusing the same password
+    if verify_password(new_password, current_user.hashed_password):
+        logger.warning(f"Password change failed: New password is same as current password for user ID {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password cannot be the same as your current password",
+        )
+    
+    # Update password
+    current_user.hashed_password = get_password_hash(new_password)
+    session.add(current_user)
+    await session.commit()
+    
+    logger.info(f"Password changed successfully for user ID: {current_user.id}")
+    return {"message": "Password changed successfully"}
+
 # Specific endpoint just for promoting/demoting a user to admin
 @router.patch("/users/{user_id}/promote", response_model=User)
 async def promote_user(
@@ -470,25 +551,34 @@ async def promote_user(
     current_user: User = Depends(current_active_user)
 ):
     # Only admins can promote/demote users
+    logger = logging.getLogger(__name__)
+    logger.info(f"Promote user request for user ID {user_id} to admin status: {is_superuser}")
+    logger.info(f"Request by user: {current_user.email}, is_superuser: {current_user.is_superuser}")
+    
     if not current_user.is_superuser:
+        logger.warning(f"Non-admin user {current_user.email} attempted to modify admin status")
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     # Don't allow demoting yourself
     if current_user.id == user_id and not is_superuser:
+        logger.warning(f"User {current_user.email} attempted to demote themselves from admin")
         raise HTTPException(status_code=400, detail="Cannot demote yourself from admin status")
     
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     
     if not user:
+        logger.warning(f"Failed to find user with ID {user_id}")
         raise HTTPException(status_code=404, detail="User not found")
     
     # Update admin status
+    logger.info(f"Changing admin status for user {user.email} from {user.is_superuser} to {is_superuser}")
     user.is_superuser = is_superuser
     session.add(user)
     await session.commit()
     await session.refresh(user)
     
+    logger.info(f"Successfully updated admin status for user {user.email}")
     return user
 
 # Custom signup endpoint that bypasses FastAPI Users
@@ -587,3 +677,41 @@ async def custom_signup(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later."
         )
+
+# Custom login endpoint with proper password validation
+@router.post("/auth/login")
+async def custom_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_session)
+):
+    logger = logging.getLogger(__name__)
+    logger.info(f"Login attempt for user: {form_data.username}")
+    
+    # Find user by email
+    result = await session.execute(select(User).where(User.email == form_data.username))
+    user = result.scalar_one_or_none()
+    
+    # Check if user exists and is active
+    if not user or not user.is_active:
+        logger.warning(f"Login failed: User {form_data.username} not found or not active")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    
+    # Verify password
+    if not verify_password(form_data.password, user.hashed_password):
+        logger.warning(f"Login failed: Invalid password for user {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    
+    # Generate token
+    strategy = auth_backend.get_strategy()
+    access_token = await strategy.write_token(user)
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }

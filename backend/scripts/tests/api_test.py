@@ -2,13 +2,18 @@ import requests
 import json
 import time
 import sys
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configuration - can be changed via command line arguments
-BASE_URL = "http://localhost:8000/api/v1"
-ADMIN_EMAIL = "newadmin@example.com"
-ADMIN_PASSWORD = "password123"
-TEST_USER_EMAIL = "testuser@example.com"
-TEST_USER_PASSWORD = "testpassword123"
+BASE_URL = os.getenv("TEST_API_URL", "http://localhost:8000/api/v1")
+ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "admin@example.com")
+ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "placeholder_password")  # Replace hardcoded password
+TEST_USER_EMAIL = os.getenv("TEST_USER_EMAIL", "test_user@example.com")
+TEST_USER_PASSWORD = os.getenv("TEST_USER_PASSWORD", "placeholder_password")  # Replace hardcoded password
 wait_time = 5  # seconds to wait for server startup
 
 # Parse command line arguments
@@ -337,6 +342,23 @@ if test_user_id and admin_token:
     track_result(run_test('delete', f'/users/{test_user_id}', "Delete Test User", headers=admin_headers))
 else:
     print("\n--- Delete Test User: ⚠️ SKIPPED (no user ID or admin token) ---")
+
+# -----------------------------------------------------------------
+# TEST 17: Change Password
+# Purpose: Test the password change functionality for authenticated users
+# Expected: 200 OK with success message
+# Confirms: Password change is working correctly
+# -----------------------------------------------------------------
+if admin_token:
+    track_result(run_test(
+        'post', 
+        '/users/me/change-password', 
+        "Change Password",
+        json={"current_password": ADMIN_PASSWORD, "new_password": ADMIN_PASSWORD},
+        headers=admin_headers
+    ))
+else:
+    print("\n--- Change Password: ⚠️ SKIPPED (no admin token) ---")
 
 # Print summary
 print("\n=== TEST SUMMARY ===")

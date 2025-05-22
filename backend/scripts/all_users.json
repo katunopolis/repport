@@ -1,0 +1,114 @@
+[
+  {
+    "id": 1,
+    "email": "admin@example.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 2,
+    "email": "newuser@example.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 4,
+    "email": "newadmin@example.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 5,
+    "email": "raul@raul.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 6,
+    "email": "user@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 7,
+    "email": "admin2@admin.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 8,
+    "email": "user2@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 9,
+    "email": "user11@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 10,
+    "email": "user12@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 11,
+    "email": "user13@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 12,
+    "email": "user14@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 13,
+    "email": "user34@user.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 14,
+    "email": "user1@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 15,
+    "email": "new.admin@example.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 16,
+    "email": "admin2@example.com",
+    "is_admin": true,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  },
+  {
+    "id": 17,
+    "email": "user69@user.com",
+    "is_admin": false,
+    "is_active": true,
+    "hash_type": "bcrypt"
+  }
+]

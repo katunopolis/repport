@@ -63,12 +63,28 @@ The Admin Dashboard provides a comprehensive user management interface that allo
 - Creating new users (both admin and regular)
 - Editing existing users (change role and status)
 - Deleting users
+- Changing your own password securely
 
 ### Accessing the AdminDashboard
 
 1. Log in with an admin user account
 2. Navigate to the Admin Dashboard (typically available in the navigation menu)
 3. Select the "User Management" tab
+
+### Changing Your Password
+
+1. From the Admin Dashboard, click the "Change Password" button in the top navigation bar
+2. Enter your current password in the "Current Password" field
+3. Enter your new password in the "New Password" field (must be at least 8 characters)
+4. Confirm your new password in the "Confirm New Password" field
+5. Click "Change Password" to update your password
+
+Note that this follows the same security requirements as regular user password changes:
+- Current password verification is required
+- New password must be at least 8 characters long
+- Passwords are securely hashed using bcrypt
+
+> **Technical Note**: As of v1.3.1, the password change implementation was updated to properly include authentication tokens with requests, fixing 401 Unauthorized errors that could occur when attempting to change passwords.
 
 ### Creating a New User
 
@@ -86,6 +102,30 @@ The Admin Dashboard provides a comprehensive user management interface that allo
    - Admin status (toggle to grant or revoke admin privileges)
    - Active status (toggle to activate or deactivate the user)
 4. Click "Update" to save changes
+
+### Promoting/Demoting Admin Status
+
+The system now includes a dedicated API endpoint for managing user admin privileges:
+
+```
+PATCH /api/v1/users/{user_id}/promote
+```
+
+This endpoint accepts a JSON body with:
+```json
+{
+  "is_superuser": true|false
+}
+```
+
+> **Technical Note**: User IDs are represented as strings in the frontend interface and API methods, but as integers in the backend. The API endpoints handle this conversion automatically.
+
+The frontend uses this endpoint to reliably change user roles. Key improvements include:
+
+- **Enhanced Logging**: Better visibility into role changes for audit purposes
+- **Fixed Permission Validation**: Properly checks that only admins can change roles
+- **Self-Protection Logic**: Prevents admins from accidentally demoting themselves
+- **Improved Error Handling**: Clear error messages when operations fail
 
 ### Deleting a User
 

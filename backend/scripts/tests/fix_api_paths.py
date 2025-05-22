@@ -2,6 +2,16 @@ import requests
 import json
 import sys
 import time
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Test configuration
+TEST_API_URL = os.getenv("TEST_API_URL", "http://localhost:8000/api/v1")
+TEST_ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "admin@example.com")
+TEST_ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "placeholder_password")  # Replace hardcoded password
 
 # List of endpoints that appeared in error logs
 failing_endpoints = [
@@ -76,6 +86,19 @@ def suggest_fix(endpoint, best_prefix, best_status):
     else:
         return f"Try using '/api/v1{endpoint}' or check if implementation exists"
 
+def test_login_endpoint():
+    """Test the login endpoint with correct format."""
+    print(f"\nTesting login endpoint...")
+    login_data = {"username": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASSWORD}
+    response = requests.post(f"{TEST_API_URL}/auth/login", data=login_data)
+    print(f"Status code: {response.status_code}")
+    
+    if response.status_code == 200:
+        print("✅ Login endpoint working correctly")
+    else:
+        print("❌ Login endpoint failed")
+        print(f"Response: {response.text}")
+
 def main():
     print("=" * 50)
     print("API PATH ANALYZER")
@@ -91,7 +114,7 @@ def main():
     auth_token = None
     login_url = f"{base_url}/api/v1/auth/login"
     try:
-        login_data = {"username": "admin@example.com", "password": "admin123"}
+        login_data = {"username": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASSWORD}
         login_resp = requests.post(
             login_url, 
             data=login_data,
@@ -109,7 +132,7 @@ def main():
     headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
     
     # Special test for login
-    login_data = {"username": "admin@example.com", "password": "admin123"}
+    login_data = {"username": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASSWORD}
     login_headers = {"Content-Type": "application/x-www-form-urlencoded"}
     login_found, login_prefix, login_status = check_endpoint(
         "/auth/login", 

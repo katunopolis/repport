@@ -145,7 +145,37 @@ export const authApi = {
   },
   
   getCurrentUser: async () => {
-    const response = await axios.get(getFullApiUrl('users/me'));
+    // Always explicitly include auth token to prevent auth issues
+    const token = getAuthToken();
+    if (!token) {
+      console.error('No authentication token found when trying to get current user');
+      throw new Error('Authentication required');
+    }
+    
+    const response = await axios.get(getFullApiUrl('users/me'), {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    return response.data;
+  },
+  
+  changePassword: async (current_password: string, new_password: string): Promise<{ message: string }> => {
+    // Always explicitly include auth token to prevent auth issues
+    const token = getAuthToken();
+    if (!token) {
+      console.error('No authentication token found when trying to change password');
+      throw new Error('Authentication required');
+    }
+    
+    const response = await axios.post(getFullApiUrl('users/me/change-password'), 
+      { current_password, new_password },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
     return response.data;
   },
 };
@@ -276,11 +306,9 @@ export const ticketsApi = {
 };
 
 export const userApi = {
-  // Get all users (admin only)
   getUsers: async (): Promise<User[]> => {
-    // Always explicitly include auth token for admin operations
     const token = getAuthToken();
-    const response = await axios.get(getFullApiUrl('users/'), {
+    const response = await axios.get(getFullApiUrl('users'), {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -288,9 +316,25 @@ export const userApi = {
     return response.data;
   },
   
-  // Get a specific user by ID (admin only)
+  createUser: async (email: string, password: string, is_superuser: boolean = false): Promise<User> => {
+    const token = getAuthToken();
+    const userData = {
+      email,
+      password,
+      is_superuser,
+      is_active: true,
+      is_verified: true
+    };
+    
+    const response = await axios.post(getFullApiUrl('users'), userData, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    return response.data;
+  },
+  
   getUser: async (id: string): Promise<User> => {
-    // Always explicitly include auth token for admin operations
     const token = getAuthToken();
     const response = await axios.get(getFullApiUrl(`users/${id}`), {
       headers: {
@@ -300,27 +344,7 @@ export const userApi = {
     return response.data;
   },
   
-  // Create a new user (admin only)
-  createUser: async (email: string, password: string, is_superuser: boolean = false): Promise<User> => {
-    // Always explicitly include auth token for admin operations
-    const token = getAuthToken();
-    const response = await axios.post(getFullApiUrl('users/'), { 
-      email, 
-      password,
-      is_superuser,
-      is_active: true,
-      is_verified: true
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    return response.data;
-  },
-  
-  // Update user properties (admin only)
   updateUser: async (id: string, userData: Partial<User>): Promise<User> => {
-    // Always explicitly include auth token for admin operations
     const token = getAuthToken();
     const response = await axios.patch(getFullApiUrl(`users/${id}`), userData, {
       headers: {
@@ -330,28 +354,28 @@ export const userApi = {
     return response.data;
   },
   
-  // Promote or demote user to/from admin (admin only)
   promoteUser: async (id: string, isAdmin: boolean): Promise<User> => {
-    // Always explicitly include auth token for admin operations
     const token = getAuthToken();
-    const response = await axios.patch(getFullApiUrl(`users/${id}/promote`), { is_superuser: isAdmin }, {
-      headers: {
-        Authorization: `Bearer ${token}`
+    console.debug(`Setting user ${id} admin status to: ${isAdmin}`);
+    const response = await axios.patch(getFullApiUrl(`users/${id}/promote`), 
+      { is_superuser: isAdmin }, 
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       }
-    });
+    );
     return response.data;
   },
   
-  // Delete a user (admin only)
   deleteUser: async (id: string): Promise<void> => {
-    // Always explicitly include auth token for admin operations
     const token = getAuthToken();
     await axios.delete(getFullApiUrl(`users/${id}`), {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
-  },
+  }
 };
 
 export default api; 

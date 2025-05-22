@@ -309,4 +309,109 @@ export const getFullApiUrl = (endpoint: string): string => {
 };
 ```
 
-This ensures maximum compatibility between the frontend and backend regardless of trailing slashes. 
+This ensures maximum compatibility between the frontend and backend regardless of trailing slashes.
+
+## Recent Fixes (v1.1)
+
+### 1. Login with Bad Password Fix
+
+Previously, login attempts with incorrect passwords were sometimes still successful. We've fixed this issue by:
+
+1. **Custom Login Handler**: Implemented a custom login endpoint that properly validates passwords
+2. **Explicit Error Messages**: Now returns appropriate 401 Unauthorized responses with clear error messages
+3. **Improved Security**: Ensures that only valid credentials can authenticate
+
+Implementation:
+```python
+@router.post("/auth/login")
+async def custom_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_session)
+):
+    # Find user by email
+    result = await session.execute(select(User).where(User.email == form_data.username))
+    user = result.scalar_one_or_none()
+    
+    # Check if user exists and is active
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    
+    # Verify password
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+```
+
+### 2. Admin User Role Management Fix 
+
+The endpoint for promoting and demoting users to admin roles has been fixed:
+
+1. **Enhanced Error Handling**: Added comprehensive logging and better error messages
+2. **Frontend Integration**: Implemented proper API client methods in the frontend
+3. **Security Checks**: Added validation to prevent admins from demoting themselves
+4. **Edge Cases**: Improved handling of invalid user IDs and permission checks
+
+Implementation:
+```typescript
+// Frontend API client
+promoteUser: async (id: number, isAdmin: boolean): Promise<User> => {
+  const token = getAuthToken();
+  console.debug(`Setting user ${id} admin status to: ${isAdmin}`);
+  const response = await axios.patch(getFullApiUrl(`users/${id}/promote`), 
+    { is_superuser: isAdmin }, 
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+  return response.data;
+}
+```
+
+### 3. Forgot Password Implementation
+
+A complete password reset flow has been implemented:
+
+1. **Two-Step Process**: Request password reset token, then reset password with token
+2. **Security Features**:
+   - Same response message regardless of email existence (prevents email enumeration)
+   - Token validation and minimum password length check
+   - Password confirmation match validation in the frontend
+3. **Developer Experience**: Development mode includes reset tokens in the response
+4. **User Experience**: Clear feedback and error messages throughout the process
+
+New endpoints:
+```
+POST /api/v1/auth/forgot-password  # Request reset token
+POST /api/v1/auth/reset-password    # Reset password with token
+```
+
+### 4. User ID Type Consistency Fix
+
+Fixed type inconsistency between frontend User interface and API methods:
+
+1. **Type Standardization**: Updated all API methods to consistently use string type for user IDs
+2. **Frontend/Backend Consistency**: Ensured alignment between frontend TypeScript types and backend data types
+3. **Docker Build Fix**: Resolved TypeScript build errors in the Docker container
+
+## Password Hashing Standardization (v1.2)
+
+We've standardized all password hashing to use the same secure bcrypt algorithm throughout the system:
+
+1. **Consistent Hashing**: All passwords now use bcrypt ($2b$) with standard security parameters
+2. **Fixed Authentication Issues**: Previous login problems were caused by inconsistent hashing methods  
+3. **Security Improvements**: Standardized on a single, strong hashing algorithm (bcrypt with 12 rounds)
+4. **Password Reset**: Users with non-bcrypt hashes had their passwords reset (see admin for temporary credentials)
+
+This standardization ensures that:
+- Password verification works reliably for all users
+- Security checks are consistent across the system
+- Future password changes maintain the same secure format
+
+If users experience login issues following this update, they may need to use the password reset functionality. 

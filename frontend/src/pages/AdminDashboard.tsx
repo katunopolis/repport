@@ -38,6 +38,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import LockIcon from '@mui/icons-material/Lock';
 import { ticketsApi, userApi, User, Ticket, authApi, formatTicketId } from '../api/api';
 
 interface TabPanelProps {
@@ -81,6 +82,11 @@ const AdminDashboard: React.FC = () => {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdChangeError, setPwdChangeError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Fetch tickets and users
@@ -134,6 +140,69 @@ const AdminDashboard: React.FC = () => {
       navigate('/');
     } catch (err) {
       console.error('Logout error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Password change handlers
+  const handleOpenPasswordDialog = () => {
+    setPwdDialogOpen(true);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPwdChangeError(null);
+  };
+
+  const handleClosePasswordDialog = () => {
+    setPwdDialogOpen(false);
+  };
+
+  const handlePasswordChange = async () => {
+    // Reset error state
+    setPwdChangeError(null);
+    
+    // Validate inputs
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPwdChangeError('All fields are required');
+      return;
+    }
+    
+    // Check if new passwords match
+    if (newPassword !== confirmPassword) {
+      setPwdChangeError('New passwords do not match');
+      return;
+    }
+    
+    // Check password length
+    if (newPassword.length < 8) {
+      setPwdChangeError('New password must be at least 8 characters long');
+      return;
+    }
+    
+    // Check if new password is the same as current password
+    if (newPassword === currentPassword) {
+      setPwdChangeError('New password cannot be the same as your current password');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await authApi.changePassword(currentPassword, newPassword);
+      setSnackbar({
+        open: true,
+        message: 'Password changed successfully',
+        severity: 'success'
+      });
+      setPwdDialogOpen(false);
+    } catch (err: any) {
+      console.error('Password change error:', err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        setPwdChangeError(err.response.data.detail);
+      } else {
+        setPwdChangeError('Failed to change password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -292,6 +361,15 @@ const AdminDashboard: React.FC = () => {
           <IconButton onClick={tabValue === 0 ? fetchTickets : fetchUsers} disabled={loading} sx={{ mr: 1 }}>
             <RefreshIcon />
           </IconButton>
+          <Button
+            variant="outlined"
+            startIcon={<LockIcon />}
+            onClick={handleOpenPasswordDialog}
+            sx={{ mr: 1 }}
+            disabled={loading}
+          >
+            Change Password
+          </Button>
           <IconButton onClick={handleLogout} color="primary" disabled={loading}>
             <LogoutIcon />
           </IconButton>
@@ -572,6 +650,64 @@ const AdminDashboard: React.FC = () => {
           <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
           <Button onClick={handleDeleteUser} variant="contained" color="error">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Password Change Dialog */}
+      <Dialog open={pwdDialogOpen} onClose={handleClosePasswordDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          {pwdChangeError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {pwdChangeError}
+            </Alert>
+          )}
+          <TextField
+            label="Current Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={loading}
+          />
+          <TextField
+            label="New Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            disabled={loading}
+            helperText="Password must be at least 8 characters long"
+          />
+          <TextField
+            label="Confirm New Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={loading}
+            error={confirmPassword !== '' && newPassword !== confirmPassword}
+            helperText={confirmPassword !== '' && newPassword !== confirmPassword ? "Passwords don't match" : ""}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePasswordDialog} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handlePasswordChange} 
+            color="primary" 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Change Password'}
           </Button>
         </DialogActions>
       </Dialog>

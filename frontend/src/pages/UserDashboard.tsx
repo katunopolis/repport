@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LogoutIcon from '@mui/icons-material/Logout';
+import LockIcon from '@mui/icons-material/Lock';
 import { ticketsApi, Ticket, authApi, formatTicketId } from '../api/api';
 
 const UserDashboard: React.FC = () => {
@@ -34,6 +35,12 @@ const UserDashboard: React.FC = () => {
   const [newTicket, setNewTicket] = useState({ title: '', description: '' });
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState(false);
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdChangeError, setPwdChangeError] = useState<string | null>(null);
+  const [pwdChangeSuccess, setPwdChangeSuccess] = useState(false);
   const navigate = useNavigate();
 
   // Fetch tickets from API
@@ -124,6 +131,65 @@ const UserDashboard: React.FC = () => {
     }
   };
 
+  // Password change handlers
+  const handleOpenPasswordDialog = () => {
+    setPwdDialogOpen(true);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPwdChangeError(null);
+  };
+
+  const handleClosePasswordDialog = () => {
+    setPwdDialogOpen(false);
+  };
+
+  const handlePasswordChange = async () => {
+    // Reset error state
+    setPwdChangeError(null);
+    
+    // Validate inputs
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPwdChangeError('All fields are required');
+      return;
+    }
+    
+    // Check if new passwords match
+    if (newPassword !== confirmPassword) {
+      setPwdChangeError('New passwords do not match');
+      return;
+    }
+    
+    // Check password length
+    if (newPassword.length < 8) {
+      setPwdChangeError('New password must be at least 8 characters long');
+      return;
+    }
+    
+    // Check if new password is the same as current password
+    if (newPassword === currentPassword) {
+      setPwdChangeError('New password cannot be the same as your current password');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await authApi.changePassword(currentPassword, newPassword);
+      setPwdChangeSuccess(true);
+      setPwdDialogOpen(false);
+    } catch (err: any) {
+      console.error('Password change error:', err);
+      if (err.response && err.response.data && err.response.data.detail) {
+        setPwdChangeError(err.response.data.detail);
+      } else {
+        setPwdChangeError('Failed to change password. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleTicketClick = (id: number) => {
     navigate(`/ticket/${id}`);
   };
@@ -177,6 +243,15 @@ const UserDashboard: React.FC = () => {
             disabled={loading}
           >
             New Ticket
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<LockIcon />}
+            onClick={handleOpenPasswordDialog}
+            sx={{ mr: 1 }}
+            disabled={loading}
+          >
+            Change Password
           </Button>
           <IconButton onClick={handleLogout} color="primary" disabled={loading}>
             <LogoutIcon />
@@ -250,28 +325,24 @@ const UserDashboard: React.FC = () => {
             </Alert>
           )}
           <TextField
-            autoFocus
-            margin="dense"
-            id="title"
             label="Title"
-            type="text"
             fullWidth
-            variant="outlined"
+            margin="normal"
+            required
             value={newTicket.title}
-            onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-            sx={{ mb: 2 }}
+            onChange={(e) => setNewTicket({...newTicket, title: e.target.value})}
+            disabled={loading}
           />
           <TextField
-            margin="dense"
-            id="description"
             label="Description"
-            type="text"
             fullWidth
+            margin="normal"
+            required
             multiline
             rows={4}
-            variant="outlined"
             value={newTicket.description}
-            onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+            onChange={(e) => setNewTicket({...newTicket, description: e.target.value})}
+            disabled={loading}
           />
         </DialogContent>
         <DialogActions>
@@ -280,23 +351,96 @@ const UserDashboard: React.FC = () => {
           </Button>
           <Button 
             onClick={handleSubmitTicket} 
+            color="primary" 
             variant="contained" 
-            color="primary"
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Submit'}
+            {loading ? <CircularProgress size={24} /> : 'Submit Ticket'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Success notification */}
+      {/* Password Change Dialog */}
+      <Dialog open={pwdDialogOpen} onClose={handleClosePasswordDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent>
+          {pwdChangeError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {pwdChangeError}
+            </Alert>
+          )}
+          <TextField
+            label="Current Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={loading}
+          />
+          <TextField
+            label="New Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            disabled={loading}
+            helperText="Password must be at least 8 characters long"
+          />
+          <TextField
+            label="Confirm New Password"
+            type="password"
+            fullWidth
+            margin="normal"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={loading}
+            error={confirmPassword !== '' && newPassword !== confirmPassword}
+            helperText={confirmPassword !== '' && newPassword !== confirmPassword ? "Passwords don't match" : ""}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePasswordDialog} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handlePasswordChange} 
+            color="primary" 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Change Password'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success notification for password change */}
+      <Snackbar
+        open={pwdChangeSuccess}
+        autoHideDuration={6000}
+        onClose={() => setPwdChangeSuccess(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setPwdChangeSuccess(false)} severity="success">
+          Password changed successfully
+        </Alert>
+      </Snackbar>
+
+      {/* Success notification for ticket creation */}
       <Snackbar
         open={createSuccess}
         autoHideDuration={6000}
         onClose={() => setCreateSuccess(false)}
-        message="Ticket created successfully"
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      >
+        <Alert onClose={() => setCreateSuccess(false)} severity="success">
+          Ticket created successfully
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

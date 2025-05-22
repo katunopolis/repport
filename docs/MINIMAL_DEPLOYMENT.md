@@ -691,4 +691,19 @@ When deploying the application with Docker, you may encounter several common iss
 - Basic security measures only
 - Social login and passkey support planned for future releases
 
-Remember: This is a foundation to build upon. Add features and complexity as needed, based on user feedback and requirements. 
+Remember: This is a foundation to build upon. Add features and complexity as needed, based on user feedback and requirements.
+
+## Future Enhancements
+
+The following features are planned for future releases:
+
+- Add password reset
+  - **Status:** ✅ IMPLEMENTED
+  - Password reset flow is now fully working with:
+    - Request password reset page at `/forgot-password`
+    - Backend endpoints for requesting reset tokens and setting new passwords
+    - Email delivery of reset tokens (with development mode token display)
+    - Client-side validation of password requirements
+    - Security features like consistent responses and minimum password lengths
+
+- **Implement Social Login** 

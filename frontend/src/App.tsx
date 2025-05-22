@@ -7,6 +7,7 @@ import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import TicketPage from './pages/TicketPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -44,6 +45,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/ticket/:id" element={<TicketPage />} />
