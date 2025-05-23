@@ -57,9 +57,9 @@ const UserDashboard: React.FC = () => {
       setError('Failed to load tickets. Please try again.');
       // Fallback to mock data for development/testing
       setTickets([
-        { id: 1, title: "Can't login to my account", status: "open", created_at: "2025-05-15T10:00:00Z", created_by: "user@example.com", description: "" },
-        { id: 2, title: "Need to reset my password", status: "closed", created_at: "2025-05-10T14:30:00Z", created_by: "user@example.com", description: "" },
-        { id: 3, title: "Feature request: dark mode", status: "in_progress", created_at: "2025-05-18T09:15:00Z", created_by: "user@example.com", description: "" },
+        { id: 1, title: "Can't login to my account", status: "open", created_at: "2025-05-15T10:00:00Z", created_by: "user@example.com", description: "", is_public: false },
+        { id: 2, title: "Need to reset my password", status: "closed", created_at: "2025-05-10T14:30:00Z", created_by: "user@example.com", description: "", is_public: false },
+        { id: 3, title: "Feature request: dark mode", status: "in_progress", created_at: "2025-05-18T09:15:00Z", created_by: "user@example.com", description: "", is_public: false },
       ]);
     } finally {
       setLoading(false);
@@ -96,7 +96,8 @@ const UserDashboard: React.FC = () => {
       const result = await ticketsApi.createTicket({
         title: newTicket.title.trim(),
         description: newTicket.description.trim(),
-        status: 'open'
+        status: 'open',
+        is_public: false  // New tickets are private by default
       });
       
       console.debug('Ticket created successfully:', result);
@@ -197,18 +198,14 @@ const UserDashboard: React.FC = () => {
   // Helper function to format date
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
-    
-    try {
-      const date = new Date(dateString);
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return "Invalid date";
-      }
-      return date.toLocaleDateString();
-    } catch (error) {
-      console.error("Error formatting date:", error);
-      return "Invalid date";
-    }
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   // Helper function to get status color
@@ -218,6 +215,7 @@ const UserDashboard: React.FC = () => {
         return 'primary';
       case 'in_progress':
         return 'warning';
+      case 'resolved':
       case 'closed':
         return 'success';
       default:
@@ -226,95 +224,128 @@ const UserDashboard: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          My Support Tickets
-        </Typography>
-        <Box>
-          <IconButton onClick={fetchTickets} disabled={loading} sx={{ mr: 1 }}>
-            <RefreshIcon />
-          </IconButton>
-          <Button 
-            variant="contained" 
-            startIcon={<AddIcon />}
-            onClick={handleCreateTicket}
-            sx={{ mr: 1 }}
-            disabled={loading}
-          >
-            New Ticket
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<LockIcon />}
-            onClick={handleOpenPasswordDialog}
-            sx={{ mr: 1 }}
-            disabled={loading}
-          >
-            Change Password
-          </Button>
-          <IconButton onClick={handleLogout} color="primary" disabled={loading}>
-            <LogoutIcon />
-          </IconButton>
-        </Box>
-      </Box>
-
-      {error && (
-        <Paper elevation={2} sx={{ p: 2, mb: 3, bgcolor: '#fdeded' }}>
-          <Typography color="error">{error}</Typography>
-        </Paper>
-      )}
-
-      <Paper elevation={2}>
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
+    <Container maxWidth="md">
+      <Box sx={{ my: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            My Support Tickets
+          </Typography>
+          <Box>
+            <Button
+              variant="outlined"
+              startIcon={<LockIcon />}
+              onClick={handleOpenPasswordDialog}
+              sx={{ mr: 1 }}
+            >
+              Change Password
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<LogoutIcon />}
+              onClick={handleLogout}
+            >
+              Logout
+            </Button>
           </Box>
-        ) : (
-          <List>
-            {tickets.length === 0 ? (
-              <ListItem>
-                <ListItemText 
-                  primary="No tickets found" 
-                  secondary="Click the 'New Ticket' button to create a support request." 
-                />
-              </ListItem>
-            ) : (
-              tickets.map((ticket, index) => (
+        </Box>
+        
+        <Paper elevation={2} sx={{ mb: 4, p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">Tickets</Typography>
+            <Box>
+              <Button
+                startIcon={<RefreshIcon />}
+                onClick={fetchTickets}
+                disabled={loading}
+                sx={{ mr: 1 }}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateTicket}
+                disabled={loading}
+              >
+                New Ticket
+              </Button>
+            </Box>
+          </Box>
+          
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+          )}
+          
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : tickets.length === 0 ? (
+            <Alert severity="info">
+              You don't have any tickets yet. Create a new ticket to get started.
+            </Alert>
+          ) : (
+            <List>
+              {tickets.map((ticket, index) => (
                 <React.Fragment key={ticket.id}>
                   {index > 0 && <Divider />}
                   <ListItem 
                     button 
                     onClick={() => handleTicketClick(ticket.id)}
-                    sx={{ py: 2 }}
+                    sx={{ 
+                      py: 2,
+                      background: ticket.is_public ? 'rgba(0, 128, 0, 0.05)' : 'inherit'
+                    }}
                   >
-                    <ListItemText 
+                    <ListItemText
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Chip 
-                            label={formatTicketId(ticket.id)} 
-                            size="small" 
-                            color="primary" 
-                            sx={{ mr: 1.5, fontWeight: 'medium' }}
-                          />
-                          {ticket.title}
+                          <Typography variant="body1" component="span" sx={{ fontWeight: 500 }}>
+                            {formatTicketId(ticket.id)}: {ticket.title}
+                          </Typography>
+                          {ticket.is_public && (
+                            <Chip 
+                              label="Public" 
+                              color="success" 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {ticket.created_by !== localStorage.getItem('userEmail') && (
+                            <Chip 
+                              label="Shared" 
+                              color="info" 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                            />
+                          )}
                         </Box>
                       }
-                      secondary={`Created on ${formatDate(ticket.created_at)}`} 
-                    />
-                    <Chip 
-                      label={ticket.status.replace('_', ' ')}
-                      color={getStatusColor(ticket.status) as any}
-                      size="small"
+                      secondary={
+                        <Box sx={{ mt: 0.5 }}>
+                          <Chip 
+                            label={ticket.status.replace('_', ' ')} 
+                            color={getStatusColor(ticket.status)} 
+                            size="small" 
+                            sx={{ mr: 1 }}
+                          />
+                          <Typography variant="body2" component="span" color="text.secondary">
+                            {formatDate(ticket.created_at)}
+                          </Typography>
+                        </Box>
+                      }
                     />
                   </ListItem>
                 </React.Fragment>
-              ))
-            )}
-          </List>
-        )}
-      </Paper>
-
+              ))}
+            </List>
+          )}
+        </Paper>
+      </Box>
+      
       {/* Create Ticket Dialog */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Create New Support Ticket</DialogTitle>
@@ -359,7 +390,7 @@ const UserDashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
+      
       {/* Password Change Dialog */}
       <Dialog open={pwdDialogOpen} onClose={handleClosePasswordDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Change Password</DialogTitle>
@@ -417,28 +448,26 @@ const UserDashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Success notification for password change */}
-      <Snackbar
-        open={pwdChangeSuccess}
-        autoHideDuration={6000}
-        onClose={() => setPwdChangeSuccess(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setPwdChangeSuccess(false)} severity="success">
-          Password changed successfully
-        </Alert>
-      </Snackbar>
-
-      {/* Success notification for ticket creation */}
+      
+      {/* Success Snackbar */}
       <Snackbar
         open={createSuccess}
         autoHideDuration={6000}
         onClose={() => setCreateSuccess(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert onClose={() => setCreateSuccess(false)} severity="success">
-          Ticket created successfully
+          Ticket created successfully!
+        </Alert>
+      </Snackbar>
+      
+      {/* Password Change Success Snackbar */}
+      <Snackbar
+        open={pwdChangeSuccess}
+        autoHideDuration={6000}
+        onClose={() => setPwdChangeSuccess(false)}
+      >
+        <Alert onClose={() => setPwdChangeSuccess(false)} severity="success">
+          Password changed successfully!
         </Alert>
       </Snackbar>
     </Container>

@@ -57,6 +57,7 @@ export interface Ticket {
   created_by: string;
   created_at: string;
   response?: string;
+  is_public: boolean;
 }
 
 // Helper function to format ticket ID with VR prefix
@@ -300,6 +301,30 @@ export const ticketsApi = {
       return response.data;
     } catch (error: any) {
       console.error(`Failed to solve ticket ${id}:`, error.message);
+      throw error;
+    }
+  },
+  
+  toggleTicketPublic: async (ticketId: number, isPublic: boolean): Promise<{status: string, message: string, is_public: boolean}> => {
+    const token = getAuthToken();
+    if (!token) {
+      console.error('No authentication token found when trying to toggle ticket public status');
+      throw new Error('Authentication required');
+    }
+    
+    try {
+      const response = await axios.put(
+        getFullApiUrl(`tickets/${ticketId}/toggle-public`),
+        { is_public: isPublic },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error(`Failed to toggle ticket ${ticketId} public status:`, error.message);
       throw error;
     }
   },

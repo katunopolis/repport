@@ -37,6 +37,7 @@ const TicketPage: React.FC = () => {
   const [solveDialogOpen, setSolveDialogOpen] = useState(false);
   const [finalResponse, setFinalResponse] = useState('');
   const [solvingTicket, setSolvingTicket] = useState(false);
+  const [updatingPublicStatus, setUpdatingPublicStatus] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,7 +65,8 @@ const TicketPage: React.FC = () => {
           description: "This is a sample description for development purposes.",
           status: "open",
           created_at: new Date().toISOString(),
-          created_by: "user@example.com"
+          created_by: "user@example.com",
+          is_public: false
         });
       } finally {
         setLoading(false);
@@ -133,6 +135,22 @@ const TicketPage: React.FC = () => {
     }
   };
 
+  const handleTogglePublic = async () => {
+    if (!ticket || !id) return;
+    
+    setUpdatingPublicStatus(true);
+    try {
+      await ticketsApi.toggleTicketPublic(parseInt(id), !ticket.is_public);
+      // Update the local state
+      setTicket({...ticket, is_public: !ticket.is_public});
+    } catch (err) {
+      console.error('Error toggling public status:', err);
+      setError('Failed to update ticket visibility. Please try again.');
+    } finally {
+      setUpdatingPublicStatus(false);
+    }
+  };
+
   // Helper function to format date
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
@@ -193,22 +211,45 @@ const TicketPage: React.FC = () => {
                   sx={{ mr: 1.5, fontWeight: 'bold' }}
                 />
                 {ticket.title}
+                {ticket.is_public && (
+                  <Chip 
+                    label="Public" 
+                    color="success" 
+                    size="small" 
+                    sx={{ ml: 1 }}
+                  />
+                )}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Chip 
                 label={ticket.status.replace('_', ' ')}
-                color={getStatusColor(ticket.status) as any}
-                sx={{ mr: isAdmin && ticket.status !== 'closed' ? 2 : 0 }}
+                color={getStatusColor(ticket.status)}
+                sx={{ mr: 1 }}
               />
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color={ticket.is_public ? "success" : "primary"}
+                  onClick={handleTogglePublic}
+                  disabled={updatingPublicStatus}
+                  sx={{ mr: 1 }}
+                >
+                  {updatingPublicStatus ? 
+                    <CircularProgress size={20} /> : 
+                    (ticket.is_public ? "Make Private" : "Make Public")
+                  }
+                </Button>
+              )}
               {isAdmin && ticket.status !== 'closed' && (
-                <Button 
-                  variant="contained" 
-                  color="success" 
+                <Button
+                  variant="contained"
+                  color="primary"
                   size="small"
                   onClick={handleOpenSolveDialog}
                 >
-                  Solve
+                  Solve Ticket
                 </Button>
               )}
             </Box>

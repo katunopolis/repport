@@ -99,10 +99,10 @@ const AdminDashboard: React.FC = () => {
       console.error('Error fetching tickets:', err);
       // Fallback to mock data for development/testing
       setTickets([
-        { id: 1, title: "Can't login to my account", status: "open", created_at: "2025-05-15T10:00:00Z", created_by: "user@example.com", description: "" },
-        { id: 2, title: "Need to reset my password", status: "closed", created_at: "2025-05-10T14:30:00Z", created_by: "jane.smith@example.com", description: "" },
-        { id: 3, title: "Feature request: dark mode", status: "in_progress", created_at: "2025-05-18T09:15:00Z", created_by: "mike.johnson@example.com", description: "" },
-        { id: 4, title: "Error when uploading files", status: "open", created_at: "2025-05-19T11:20:00Z", created_by: "sarah.wilson@example.com", description: "" },
+        { id: 1, title: "Can't login to my account", status: "open", created_at: "2025-05-15T10:00:00Z", created_by: "user@example.com", description: "", is_public: false },
+        { id: 2, title: "Need to reset my password", status: "closed", created_at: "2025-05-10T14:30:00Z", created_by: "jane.smith@example.com", description: "", is_public: false },
+        { id: 3, title: "Feature request: dark mode", status: "in_progress", created_at: "2025-05-18T09:15:00Z", created_by: "mike.johnson@example.com", description: "", is_public: true },
+        { id: 4, title: "Error when uploading files", status: "open", created_at: "2025-05-19T11:20:00Z", created_by: "sarah.wilson@example.com", description: "", is_public: false },
       ]);
     } finally {
       setLoading(false);
@@ -351,6 +351,34 @@ const AdminDashboard: React.FC = () => {
     ? tickets 
     : tickets.filter(ticket => ticket.status === statusFilter);
 
+  // Add togglePublic handler
+  const handleTogglePublic = async (ticketId: number, currentPublicStatus: boolean) => {
+    setLoading(true);
+    try {
+      const result = await ticketsApi.toggleTicketPublic(ticketId, !currentPublicStatus);
+      
+      // Update tickets in state
+      setTickets(tickets.map(ticket => 
+        ticket.id === ticketId ? { ...ticket, is_public: !currentPublicStatus } : ticket
+      ));
+      
+      setSnackbar({
+        open: true,
+        message: `Ticket ${formatTicketId(ticketId)} is now ${!currentPublicStatus ? 'public' : 'private'}`,
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('Error toggling ticket public status:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update ticket visibility',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -385,26 +413,32 @@ const AdminDashboard: React.FC = () => {
 
       {/* Ticket Management Tab */}
       <TabPanel value={tabValue} index={0}>
-        <Box sx={{ mb: 3 }}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel id="status-filter-label">Status Filter</InputLabel>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+          <FormControl sx={{ minWidth: 150 }}>
+            <InputLabel id="status-filter-label">Status</InputLabel>
             <Select
               labelId="status-filter-label"
-              id="status-filter"
               value={statusFilter}
-              label="Status Filter"
+              label="Status"
               onChange={handleStatusChange}
             >
-              <MenuItem value="all">All Tickets</MenuItem>
+              <MenuItem value="all">All</MenuItem>
               <MenuItem value="open">Open</MenuItem>
               <MenuItem value="in_progress">In Progress</MenuItem>
               <MenuItem value="closed">Closed</MenuItem>
             </Select>
           </FormControl>
+          <Button 
+            startIcon={<RefreshIcon />} 
+            onClick={fetchTickets}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
         </Box>
-
-        <TableContainer component={Paper} elevation={2}>
-          <Table sx={{ minWidth: 650 }}>
+        
+        <TableContainer component={Paper}>
+          <Table>
             <TableHead>
               <TableRow>
                 <TableCell>ID</TableCell>
@@ -412,62 +446,58 @@ const AdminDashboard: React.FC = () => {
                 <TableCell>Status</TableCell>
                 <TableCell>Created By</TableCell>
                 <TableCell>Date</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>Public</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    <CircularProgress size={30} sx={{ my: 2 }} />
+                  <TableCell colSpan={7} align="center">
+                    <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
-              ) : filteredTickets.length === 0 ? (
+              ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={7} align="center">
                     No tickets found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTickets.map((ticket) => (
-                  <TableRow 
-                    key={ticket.id}
-                    sx={{
-                      bgcolor: ticket.response ? 'rgba(25, 118, 210, 0.04)' : 'inherit'
-                    }}
-                  >
-                    <TableCell>{formatTicketId(ticket.id)}</TableCell>
-                    <TableCell>
-                      {ticket.title}
-                      {ticket.response && (
+                tickets
+                  .filter(ticket => statusFilter === 'all' || ticket.status === statusFilter)
+                  .map(ticket => (
+                    <TableRow key={ticket.id} hover>
+                      <TableCell>{formatTicketId(ticket.id)}</TableCell>
+                      <TableCell>{ticket.title}</TableCell>
+                      <TableCell>
                         <Chip 
+                          label={ticket.status.replace('_', ' ')} 
+                          color={getStatusColor(ticket.status)} 
                           size="small" 
-                          label="Has Response" 
-                          color="info" 
-                          variant="outlined"
-                          sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
                         />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={ticket.status.replace('_', ' ')}
-                        color={getStatusColor(ticket.status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{ticket.created_by}</TableCell>
-                    <TableCell>{formatDate(ticket.created_at)}</TableCell>
-                    <TableCell align="right">
-                      <IconButton 
-                        color="primary" 
-                        onClick={() => handleTicketClick(ticket.id)}
-                      >
-                        <VisibilityIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell>{ticket.created_by}</TableCell>
+                      <TableCell>{formatDate(ticket.created_at)}</TableCell>
+                      <TableCell>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={ticket.is_public}
+                              onChange={() => handleTogglePublic(ticket.id, ticket.is_public)}
+                              color="primary"
+                            />
+                          }
+                          label={ticket.is_public ? "Public" : "Private"}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton onClick={() => handleTicketClick(ticket.id)} size="small">
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
               )}
             </TableBody>
           </Table>

@@ -9,6 +9,10 @@ from sqlalchemy import text
 from sqlmodel import select
 from app.api.auth import current_active_user
 from app.models.user import User
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tickets")
 
@@ -44,23 +48,33 @@ async def list_tickets(
     skip: int = 0,
     limit: int = 100
 ):
-    # Admin users can see all tickets
-    if current_user.is_superuser:
-        result = await session.execute(
-            select(Ticket).order_by(Ticket.created_at.desc()).offset(skip).limit(limit)
-        )
-    else:
-        # Non-admin users can only see their own tickets
-        result = await session.execute(
-            select(Ticket)
-            .where(Ticket.created_by == current_user.email)
-            .order_by(Ticket.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
-    
-    tickets = result.scalars().all()
-    return tickets
+    try:
+        # Admin users can see all tickets
+        if current_user.is_superuser:
+            result = await session.execute(
+                select(Ticket).order_by(Ticket.created_at.desc()).offset(skip).limit(limit)
+            )
+        else:
+            # Non-admin users can see their own tickets OR public tickets
+            result = await session.execute(
+                select(Ticket)
+                .where((Ticket.created_by == current_user.email) | (Ticket.is_public == True))
+                .order_by(Ticket.created_at.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        
+        tickets = result.scalars().all()
+        
+        # Ensure all tickets have is_public set (for older records)
+        for ticket in tickets:
+            if not hasattr(ticket, 'is_public'):
+                ticket.is_public = False
+                
+        return tickets
+    except Exception as e:
+        logger.error(f"Error fetching tickets: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch tickets: {str(e)}")
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
 async def get_ticket(
@@ -76,7 +90,7 @@ async def get_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
     
     # Check if user has permission to view this ticket
-    if not current_user.is_superuser and ticket.created_by != current_user.email:
+    if not current_user.is_superuser and ticket.created_by != current_user.email and not ticket.is_public:
         raise HTTPException(status_code=403, detail="Not authorized to view this ticket")
     
     return ticket
@@ -230,3 +244,41 @@ async def solve_ticket_with_slash(
     current_user: User = Depends(current_active_user)
 ):
     return await solve_ticket(ticket_id, background_tasks, data, session, current_user)
+
+@router.put("/{ticket_id}/toggle-public")
+async def toggle_ticket_public(
+    ticket_id: int,
+    is_public: bool = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    # Only admin can toggle public status
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Only administrators can change ticket visibility")
+    
+    # Use SQLModel select to get a proper model instance
+    result = await session.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalar_one_or_none()
+    
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Update ticket with public status
+    ticket.is_public = is_public
+    ticket.updated_at = datetime.utcnow()
+    
+    session.add(ticket)
+    await session.commit()
+    await session.refresh(ticket)
+    
+    return {"status": "success", "message": f"Ticket visibility updated to {'public' if is_public else 'private'}", "is_public": is_public}
+
+# Add an explicit duplicate endpoint with trailing slash
+@router.put("/{ticket_id}/toggle-public/")
+async def toggle_ticket_public_with_slash(
+    ticket_id: int,
+    is_public: bool = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(current_active_user)
+):
+    return await toggle_ticket_public(ticket_id, is_public, session, current_user)

@@ -2,6 +2,24 @@
 
 All notable changes to the Repport project will be documented in this file.
 
+## [1.3.3] - 2025-05-23
+
+### Added
+- **Public Tickets**: Added ability for admin users to make tickets public, making them visible to all users
+- Implemented toggle switches in admin dashboard and ticket detail pages for controlling ticket visibility
+- Added visual indicators for public tickets in both user and admin interfaces
+
+### Implementation Details
+- Added `is_public` field to the ticket database schema
+- Updated ticket list endpoints to include public tickets for all users
+- Added toggle endpoint for admin users to change ticket visibility settings
+- Enhanced frontend components to display and manage ticket visibility status
+
+### Documentation
+- Updated API documentation with new ticket visibility endpoints
+- Updated ticket management guide with public/private ticket functionality
+- Added information about public tickets to user guides
+
 ## [1.3.2] - 2025-05-22
 
 ### Security
