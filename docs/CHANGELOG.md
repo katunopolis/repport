@@ -2,6 +2,13 @@
 
 All notable changes to the Repport project will be documented in this file.
 
+## [1.3.4] - 2025-05-24
+
+### Improved
+- **Enhanced Ticket Selection**: Made entire ticket rows clickable in both user and admin dashboards
+- Removed the view icon button in favor of a more intuitive row-based navigation
+- Improved user experience for navigating to ticket details
+
 ## [1.3.3] - 2025-05-23
 
 ### Added

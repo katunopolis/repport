@@ -34,7 +34,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LogoutIcon from '@mui/icons-material/Logout';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -441,25 +440,24 @@ const AdminDashboard: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
+                <TableCell>Ticket ID</TableCell>
                 <TableCell>Title</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Created By</TableCell>
                 <TableCell>Date</TableCell>
-                <TableCell>Public</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell>Visibility</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={6} align="center">
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={6} align="center">
                     No tickets found
                   </TableCell>
                 </TableRow>
@@ -467,7 +465,12 @@ const AdminDashboard: React.FC = () => {
                 tickets
                   .filter(ticket => statusFilter === 'all' || ticket.status === statusFilter)
                   .map(ticket => (
-                    <TableRow key={ticket.id} hover>
+                    <TableRow 
+                      key={ticket.id} 
+                      hover 
+                      onClick={() => handleTicketClick(ticket.id)}
+                      sx={{ cursor: 'pointer' }}
+                    >
                       <TableCell>{formatTicketId(ticket.id)}</TableCell>
                       <TableCell>{ticket.title}</TableCell>
                       <TableCell>
@@ -479,7 +482,7 @@ const AdminDashboard: React.FC = () => {
                       </TableCell>
                       <TableCell>{ticket.created_by}</TableCell>
                       <TableCell>{formatDate(ticket.created_at)}</TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <FormControlLabel
                           control={
                             <Switch
@@ -490,11 +493,6 @@ const AdminDashboard: React.FC = () => {
                           }
                           label={ticket.is_public ? "Public" : "Private"}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <IconButton onClick={() => handleTicketClick(ticket.id)} size="small">
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))
