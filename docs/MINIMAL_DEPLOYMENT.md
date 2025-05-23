@@ -694,6 +694,25 @@ When deploying the application with Docker, you may encounter several common iss
 - Basic security measures only
 - Social login and passkey support planned for future releases
 
+## User Interface Improvements
+
+The application includes several UI/UX improvements to enhance usability:
+
+1. **Clickable Ticket Rows**: 
+   - Entire ticket rows are clickable in both user and admin interfaces
+   - Provides a more intuitive interaction model and larger click targets
+   - Hover effects provide visual feedback to indicate interactivity
+   - No separate view buttons needed, reducing visual clutter
+
+2. **Public Ticket Indicators**:
+   - Public tickets are visually distinguished with clear indicators
+   - Admin users can easily toggle ticket visibility with dedicated controls
+   - Users can readily identify shared content
+
+3. **Responsive Design**:
+   - Mobile-friendly interfaces with appropriate sizing and spacing
+   - Adapts to different screen sizes for a consistent experience
+
 Remember: This is a foundation to build upon. Add features and complexity as needed, based on user feedback and requirements.
 
 ## Future Enhancements

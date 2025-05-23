@@ -102,6 +102,15 @@ In the admin dashboard, tickets with responses are visually distinguished:
 - Light blue background for rows with responses
 - "Has Response" chip label next to the ticket title
 - Public/Private toggle switch in a dedicated column
+- Entire rows are clickable for better usability with hover effects
+
+### Ticket List Navigation
+
+Users can navigate to ticket details by:
+- Clicking anywhere on the ticket row in the admin dashboard
+- Clicking on any ticket item in the user dashboard list
+- No separate view button is needed, improving usability and accessibility
+- Visual hover feedback indicates the row is clickable
 
 ### Solve Ticket Dialog
 
