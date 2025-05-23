@@ -9,12 +9,14 @@ This guide outlines the minimal setup required to get a basic helpdesk system up
    - Submit support requests
    - View own request history
    - Receive email notifications
+   - View public tickets shared by administrators
 
 2. **Admin Features**
    - View all support requests
    - Respond to requests
    - Mark requests as resolved
    - Basic request filtering
+   - Make tickets public to share with all users
 
 ## Minimal Tech Stack
 
@@ -109,6 +111,7 @@ class Ticket(SQLModel, table=True):
     created_by: str  # email
     created_at: datetime = Field(default_factory=datetime.utcnow)
     response: Optional[str] = None
+    is_public: bool = False  # Controls ticket visibility to other users
 ```
 
 `backend/app/core/email.py`:

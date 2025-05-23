@@ -12,6 +12,7 @@ class Ticket(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     response: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    is_public: bool = False  # Default to private tickets
 
 class TicketCreate(SQLModel):
     title: str
@@ -27,3 +28,4 @@ class TicketResponse(SQLModel):
     updated_at: datetime
     response: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    is_public: bool

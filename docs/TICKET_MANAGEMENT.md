@@ -20,8 +20,42 @@ Administrators have the following capabilities:
 2. **Multiple Responses**: Can add several responses to a ticket as needed
 3. **Status Management**: Can change ticket status (open, in_progress, closed)
 4. **Ticket Resolution**: Can formally solve and close tickets with a final response
+5. **Ticket Visibility**: Can make tickets public or private by toggling their visibility
+
+## Ticket Visibility
+
+The system supports both private and public tickets:
+
+1. **Private Tickets (Default)**: Only visible to the creator and administrators
+2. **Public Tickets**: Visible to all users, useful for:
+   - Sharing common solutions or FAQs
+   - Making announcements that affect multiple users
+   - Providing reference examples for common issues
+
+Administrators can toggle a ticket's visibility status in two ways:
+- From the admin dashboard using the switch in the ticket list
+- From the ticket detail page using the "Make Public"/"Make Private" button
 
 ## User Interface
+
+### Ticket Visibility Indicators
+
+Public tickets are visually distinguished using:
+- A green "Public" chip in both ticket list and detail views
+- Light green background color in the user's ticket list
+- A "Shared" chip for tickets the user didn't create but can view
+
+### Admin Toggle Controls
+
+Administrators can toggle ticket visibility with:
+- Switch controls in the ticket list:
+  ```
+  [Public/Private Toggle Switch] Public/Private
+  ```
+- Button in the ticket detail page:
+  ```
+  [Make Public] or [Make Private]
+  ```
 
 ### Ticket Response UI
 
@@ -32,7 +66,7 @@ The ticket response interface enables multiple responses from administrators unt
 | Ticket Details                            |
 +-------------------------------------------+
 | Title: Cannot access my account     [Open]|
-|                              [SOLVE BUTTON]
+|                  [Public] [SOLVE BUTTON]  |
 +-------------------------------------------+
 | Created by: user@example.com              |
 | Date: 2025-05-21 10:00:00                 |
@@ -67,6 +101,7 @@ Admin responses are styled with the following visual cues:
 In the admin dashboard, tickets with responses are visually distinguished:
 - Light blue background for rows with responses
 - "Has Response" chip label next to the ticket title
+- Public/Private toggle switch in a dedicated column
 
 ### Solve Ticket Dialog
 
@@ -99,7 +134,8 @@ POST /api/v1/tickets/
 {
   "title": "Cannot access my account",
   "description": "I'm having trouble logging in...",
-  "status": "open"
+  "status": "open",
+  "is_public": false
 }
 ```
 
@@ -122,6 +158,34 @@ This endpoint now returns the complete ticket object after responding, which inc
 - All ticket details
 - The updated response text
 - Timestamps for creation and updates
+- Public/private visibility status
+
+### Toggle Ticket Visibility (Admin Only)
+
+```
+PUT /api/v1/tickets/{id}/toggle-public
+```
+
+**Request Body**:
+```json
+{
+  "is_public": true
+}
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "message": "Ticket visibility updated to public",
+  "is_public": true
+}
+```
+
+This endpoint:
+1. Updates the ticket's visibility status
+2. Returns a confirmation message and the new visibility state
+3. Only works for admin users (403 error for regular users)
 
 ### Solve Ticket (Admin Only)
 
@@ -149,23 +213,32 @@ This endpoint:
 3. **Response History**: Add multiple responses as needed to document the troubleshooting process
 4. **Formal Resolution**: Always use the "Solve" feature to formally close tickets with a clear resolution message
 5. **User Communication**: Ensure users understand the solution provided before closing tickets
+6. **Public Information**: Only make tickets public when they contain information that is:
+   - Useful to multiple users
+   - Does not contain sensitive or private information
+   - Provides general solutions or announcements
 
 ## Implementation Details
 
-The "Solve Ticket" functionality is implemented with these key components:
+The ticket visibility functionality is implemented with these key components:
 
-1. **Frontend**:
-   - `TicketPage.tsx` - Includes solve button and dialog UI
-   - `api.ts` - Contains the `solveTicket` API call
+1. **Database**:
+   - `is_public` boolean field in the Ticket model (default: false)
 
-2. **Backend**:
-   - `tickets.py` - Implements the `/tickets/{id}/solve` endpoint
+2. **Frontend**:
+   - `AdminDashboard.tsx` - Toggle switch in ticket list
+   - `TicketPage.tsx` - Public/private toggle button
+   - `UserDashboard.tsx` - Visual indicators for public tickets
+   - `api.ts` - Contains the `toggleTicketPublic` API call
+
+3. **Backend**:
+   - `tickets.py` - Implements the `/tickets/{id}/toggle-public` endpoint
+   - Modified ticket list endpoint to include public tickets for all users
 
 The backend ensures:
-- Only administrators can solve tickets
-- Tickets are properly marked as closed
-- Resolution timestamps are recorded
-- Users receive notification of the resolution
+- Only administrators can change ticket visibility
+- Regular users can only see their own tickets plus public tickets
+- Admin users can see all tickets regardless of visibility
 
 ## User Experience Improvements
 
@@ -190,3 +263,8 @@ The backend ensures:
    - The ticket is automatically refreshed if needed
    - No more disappearing conversations
    - Better error handling for edge cases 
+
+5. **Public Ticket Indicators**:
+   - Clear visual indicators for public tickets
+   - Toggle controls for administrators
+   - "Shared" indicators for tickets visible to users who didn't create them 

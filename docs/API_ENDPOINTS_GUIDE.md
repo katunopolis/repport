@@ -211,6 +211,8 @@ GET /api/v1/tickets/
 
 **Response**: Array of ticket objects
 
+**Note**: For regular users, this will return only their own tickets and public tickets. Admin users will see all tickets.
+
 ### Get Specific Ticket
 
 ```
@@ -220,6 +222,8 @@ GET /api/v1/tickets/{id}
 **Authentication**: Not required
 
 **Response**: Ticket object
+
+**Note**: Users can only access tickets they created and tickets marked as public. Admin users can access any ticket.
 
 ### Create Ticket
 
@@ -234,11 +238,14 @@ POST /api/v1/tickets/
 {
   "title": "Ticket Title",
   "description": "Detailed description of the issue",
-  "status": "open"
+  "status": "open",
+  "is_public": false
 }
 ```
 
 > **IMPORTANT**: The `status` field is required when creating tickets. Valid values are "open", "in_progress", or "closed". If not explicitly provided, use "open" as the default status.
+>
+> The `is_public` field is optional and defaults to `false`, making tickets private by default.
 
 **Response**: Created ticket object
 
@@ -264,6 +271,39 @@ POST /api/v1/tickets/{id}/respond
   "message": "Response sent successfully"
 }
 ```
+
+### Toggle Ticket Public Status (Admin Only)
+
+```
+PUT /api/v1/tickets/{id}/toggle-public
+```
+
+**Authentication**: Required (Admin only)
+
+**Request Body**:
+```json
+{
+  "is_public": true
+}
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "message": "Ticket visibility updated to public",
+  "is_public": true
+}
+```
+
+This endpoint:
+1. Sets the public visibility status of a ticket to either public or private
+2. Makes the ticket accessible to all users (when public) or only to the creator and admins (when private)
+3. Returns a confirmation message and the new visibility state
+
+**Error Handling**:
+- 403 Forbidden: If a non-admin user attempts to change ticket visibility
+- 404 Not Found: If the ticket ID doesn't exist
 
 ### Solve Ticket (Admin Only)
 
