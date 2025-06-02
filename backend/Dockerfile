@@ -5,6 +5,7 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
@@ -14,9 +15,6 @@ ENV PYTHONUNBUFFERED=1
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Create directory for SQLite database and set permissions
-RUN mkdir -p /app/data && chmod 777 /app/data
 
 # Copy the rest of the application
 COPY . .

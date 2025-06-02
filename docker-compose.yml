@@ -1,23 +1,61 @@
+version: '3.8'
+
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
     volumes:
       - ./backend:/app
-      - ./backend/data:/app/data
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://repport:repport@db:5432/repport
+      - SECRET_KEY=9U2tN15lNXgs6vl9ZQS5Lsl-egt16cUS5M2_yUKpJ90
+      - PROJECT_NAME=Helpdesk API
+      - BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+      - ACCESS_TOKEN_EXPIRE_MINUTES=11520
+      - DEBUG=True
+      - ENVIRONMENT=development
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build: ./frontend
     ports:
-      - "3000:80"
+      - "3000:3000"
     volumes:
-      - ./frontend:/app:ro
+      - ./frontend:/app
       - /app/node_modules
-    depends_on:
-      - backend
     environment:
       - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=repport
+      - POSTGRES_PASSWORD=repport
+      - POSTGRES_DB=repport
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database:/app
+      - db_backups:/app/backups
+
+  backup:
+    build:
+      context: ./database
+      dockerfile: Dockerfile.backup
+    volumes:
+      - ./database:/app
+      - db_backups:/app/backups
+    environment:
+      - PGPASSWORD=repport
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  db_backups:

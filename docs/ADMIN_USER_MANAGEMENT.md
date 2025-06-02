@@ -118,7 +118,37 @@ This endpoint accepts a JSON body with:
 }
 ```
 
+Example using curl (Unix/Linux/macOS):
+```bash
+curl -X PATCH "http://localhost:8000/api/v1/users/3/promote" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"is_superuser": true}'
+```
+
+Example using PowerShell:
+```powershell
+$headers = @{
+    "Authorization" = "Bearer YOUR_JWT_TOKEN"
+    "Content-Type" = "application/json"
+}
+$body = @{
+    "is_superuser" = $true
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method PATCH -Uri "http://localhost:8000/api/v1/users/3/promote" -Headers $headers -Body $body
+```
+
 > **Technical Note**: User IDs are represented as strings in the frontend interface and API methods, but as integers in the backend. The API endpoints handle this conversion automatically.
+
+The promote endpoint includes several important features:
+
+- **Role-Based Access Control**: Only existing admin users can promote/demote other users
+- **First User Exception**: The first user in the system is automatically granted admin privileges
+- **Self-Protection**: Admins cannot demote themselves, preventing accidental loss of admin access
+- **Audit Logging**: All promotion/demotion attempts are logged with the requesting user's information
+- **Idempotent Operations**: Requesting the same role status multiple times is safe
+- **Clear Error Messages**: Failed operations return descriptive error messages
 
 The frontend uses this endpoint to reliably change user roles. Key improvements include:
 

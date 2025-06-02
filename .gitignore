@@ -9,6 +9,17 @@ frontend/node_modules/
 *.db
 *.sqlite3
 *.sqlite
+*.dump
+*.sql
+*.bak
+*.backup
+/database/backups/
+/app/backups/
+
+# PostgreSQL data directory
+/data/postgres/
+postgres_data/
+db_data/
 
 # Password and credential files
 reset_passwords.txt

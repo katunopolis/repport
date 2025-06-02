@@ -11,7 +11,7 @@ from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.database import get_session
-from app.models.user import User, UserCreate, UserUpdate, UserDB
+from app.models.user import User, UserCreate, UserUpdate, UserDB, UserResponse
 from app.core.config import settings
 from sqlmodel import select
 import secrets
@@ -213,18 +213,17 @@ fastapi_users = FastAPIUsers[User, int](
 
 # Current user dependency
 current_active_user = fastapi_users.current_user(active=True)
+current_superuser = fastapi_users.current_user(active=True, superuser=True)
 
-# Include FastAPI Users routers
+# Include FastAPI Users routers with updated schemas
 router.include_router(
-    # We now use our custom login instead of fastapi-users login
-    # fastapi_users.get_auth_router(auth_backend),
-    fastapi_users.get_register_router(UserCreate, User),
+    fastapi_users.get_register_router(UserCreate, UserResponse),
     prefix="/auth",
     tags=["auth"]
 )
 
 router.include_router(
-    fastapi_users.get_users_router(User, User),
+    fastapi_users.get_users_router(UserUpdate, UserResponse),
     prefix="/users",
     tags=["users"]
 )
@@ -354,7 +353,7 @@ async def verify_email(token: str, session: AsyncSession = Depends(get_session))
 async def create_user(
     user_data: UserCreate,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     # Log authentication info for debugging
     logger = logging.getLogger(__name__)
@@ -395,7 +394,7 @@ async def create_user(
 async def create_user_with_slash(
     user_data: UserCreate,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     logger = logging.getLogger(__name__)
     logger.info(f"Create user with trailing slash endpoint called. Forwarding to main endpoint. Auth user: {current_user.email}")
@@ -405,7 +404,7 @@ async def create_user_with_slash(
 @router.get("/users", response_model=List[User])
 async def list_users(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     # Only admins can list all users
     if not current_user.is_superuser:
@@ -420,7 +419,7 @@ async def list_users(
 @router.get("/users/", response_model=List[User])
 async def list_users_with_slash(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     return await list_users(session, current_user)
 
@@ -429,7 +428,7 @@ async def list_users_with_slash(
 async def get_user(
     user_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     # Only admins can view specific users
     if not current_user.is_superuser:
@@ -447,25 +446,21 @@ async def get_user(
 @router.patch("/users/{user_id}", response_model=User)
 async def update_user(
     user_id: int,
-    user_update: dict = Body(...),
+    user_update: UserUpdate,  # Changed from dict to UserUpdate
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)  # Changed to require superuser
 ):
     # Only admins can update users
-    if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Update only provided fields
-    valid_fields = ["is_active", "is_superuser", "is_verified", "full_name"]
-    for field, value in user_update.items():
-        if field in valid_fields:
-            setattr(user, field, value)
+    # Update only provided fields using the UserUpdate model
+    update_data = user_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
     
     session.add(user)
     await session.commit()
@@ -478,7 +473,7 @@ async def update_user(
 async def delete_user(
     user_id: int,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(current_active_user)
+    current_user: User = Depends(current_superuser)
 ):
     # Only admins can delete users
     if not current_user.is_superuser:
@@ -550,26 +545,43 @@ async def promote_user(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(current_active_user)
 ):
-    # Only admins can promote/demote users
     logger = logging.getLogger(__name__)
     logger.info(f"Promote user request for user ID {user_id} to admin status: {is_superuser}")
     logger.info(f"Request by user: {current_user.email}, is_superuser: {current_user.is_superuser}")
     
-    if not current_user.is_superuser:
-        logger.warning(f"Non-admin user {current_user.email} attempted to modify admin status")
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    
-    # Don't allow demoting yourself
-    if current_user.id == user_id and not is_superuser:
-        logger.warning(f"User {current_user.email} attempted to demote themselves from admin")
-        raise HTTPException(status_code=400, detail="Cannot demote yourself from admin status")
-    
+    # Get the target user first
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     
     if not user:
         logger.warning(f"Failed to find user with ID {user_id}")
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if this is the first user trying to promote themselves
+    result = await session.execute(select(User))
+    all_users = result.scalars().all()
+    is_first_user = len(all_users) == 1 and current_user.id == user_id
+    
+    # Allow promotion if:
+    # 1. The current user is a superuser, or
+    # 2. This is the first user in the system promoting themselves
+    if not current_user.is_superuser and not is_first_user:
+        logger.warning(f"Non-admin user {current_user.email} attempted to modify admin status")
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    # Don't allow demoting yourself unless there's another admin
+    if current_user.id == user_id and not is_superuser:
+        # Count how many other admins exist
+        result = await session.execute(
+            select(User).where(
+                User.is_superuser == True,
+                User.id != current_user.id
+            )
+        )
+        other_admins = result.scalars().all()
+        if not other_admins:
+            logger.warning(f"User {current_user.email} attempted to demote themselves when they are the only admin")
+            raise HTTPException(status_code=400, detail="Cannot demote yourself when you are the only admin")
     
     # Update admin status
     logger.info(f"Changing admin status for user {user.email} from {user.is_superuser} to {is_superuser}")

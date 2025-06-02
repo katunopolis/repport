@@ -1,0 +1,2 @@
+# Run database backup every day at 22:00
+0 22 * * * /app/backup_db.sh 
