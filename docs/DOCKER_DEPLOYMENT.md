@@ -131,6 +131,82 @@ services:
       - ./backend:/app
       - ./backend/data:/app/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"  # Updated to match nginx configuration
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+```
+
+### 3. Nginx Configuration
+
+The frontend service uses nginx to serve the React application. The configuration in `frontend/nginx.conf` should include:
+
+```nginx
+server {
+    listen 3000;  # Updated to listen on port 3000
+    
+    # Serve static files
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API requests to the backend
+    location /api/ {
+        proxy_pass http://backend:8000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### 4. Frontend Dockerfile
+
+The `frontend/Dockerfile` should include:
+
+```dockerfile
+# Stage 1: Build the application
+FROM node:18-alpine as build
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies with consistent versions
+RUN npm ci
+
+# Copy source files
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Serve with Nginx
+FROM nginx:stable-alpine
+
+# Copy build files to nginx
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 3000
+EXPOSE 3000
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
 ## Deployment Steps
@@ -145,6 +221,7 @@ docker-compose up --build
 
 3. Verify the application is running:
 
+   - Open http://localhost:3000 to access the frontend application
    - Open http://localhost:8000/docs in your browser to see the Swagger UI documentation
    - Check the health endpoint at http://localhost:8000/health to verify the API is running correctly
    - The health endpoint should return something like:

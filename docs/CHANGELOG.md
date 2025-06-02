@@ -54,4 +54,11 @@ All notable changes to the Repport project will be documented in this file.
 ### Documentation
 - Added technical notes about authentication requirements for the password change feature
 - Updated troubleshooting guide with information about the authentication fix
-- Updated API documentation to clarify authentication requirements for password-related endpoints 
+- Updated API documentation to clarify authentication requirements for password-related endpoints
+
+## [Unreleased]
+
+### Changed
+- Updated nginx configuration to use port 3000 instead of 80 for better consistency with docker-compose configuration
+- Modified frontend Dockerfile to expose port 3000
+- Updated documentation to reflect the new port configuration 

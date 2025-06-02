@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./data/helpdesk.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://repport:repport@localhost:5432/repport")
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", 20))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", 10))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", 30))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", 1800))
     
     # Email (Resend)
     RESEND_API_KEY: str = os.getenv("MAIL_PASSWORD", "")
